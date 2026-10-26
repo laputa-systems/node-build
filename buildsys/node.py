@@ -31,6 +31,32 @@ def configure_env(recipe: dict) -> dict[str, str]:
     return env
 
 
+PATCH_LEVEL = 1
+
+PRODUCT_PATCHES = (
+    (
+        "common.gypi",
+        "'MACOSX_DEPLOYMENT_TARGET': '13.5',       # -mmacosx-version-min=13.5",
+        "'MACOSX_DEPLOYMENT_TARGET': '26.0',       # -mmacosx-version-min=26.0",
+    ),
+)
+
+
+def apply_product_patches(source: Path) -> list[str]:
+    applied: list[str] = []
+    for relative, old, new in PRODUCT_PATCHES:
+        target = source / relative
+        text = target.read_text(encoding="utf-8")
+        if new in text:
+            applied.append(f"{relative}: already applied")
+            continue
+        if text.count(old) != 1:
+            raise BuildError(f"patch target not found exactly once in {relative}")
+        target.write_text(text.replace(old, new), encoding="utf-8")
+        applied.append(f"{relative}: applied macOS floor 26.0 (patch level {PATCH_LEVEL})")
+    return applied
+
+
 def ensure_extracted(repo_root: Path) -> Path:
     lock = inputs.load_lock(repo_root / "sources.lock.json")
     entry = inputs.lock_entry(lock, "node")
@@ -44,6 +70,7 @@ def ensure_extracted(repo_root: Path) -> Path:
         inputs.safe_extract(archive, repo_root / "build" / "src")
     if not marker.exists():
         raise BuildError(f"extracted source has no configure script: {target}")
+    apply_product_patches(target)
     return target
 
 
@@ -55,7 +82,7 @@ def recipe_fingerprint(recipe: dict) -> str:
     import hashlib
 
     return hashlib.sha256(
-        json.dumps(recipe, sort_keys=True).encode("utf-8")
+        json.dumps({"recipe": recipe, "patch_level": PATCH_LEVEL}, sort_keys=True).encode("utf-8")
     ).hexdigest()
 
 
@@ -142,5 +169,6 @@ def build(repo_root: Path, triple: str, jobs: int) -> Path:
         run_configure(source, repo_root, triple, recipe)
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
-    write_receipt(repo_root, triple, recipe, {"built_node": str(binary)})
+    applied = apply_product_patches(source)
+    write_receipt(repo_root, triple, recipe, {"built_node": str(binary), "patches": applied})
     return binary

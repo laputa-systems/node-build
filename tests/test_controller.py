@@ -131,6 +131,46 @@ class RecipesTest(unittest.TestCase):
         self.assertIn("--with-intl=small-icu", command)
 
 
+class PatchTest(unittest.TestCase):
+    def test_patch_applies_once_and_is_idempotent(self):
+        from buildsys import node as node_driver
+
+        probe = REPO_ROOT / ".work" / "tmp" / "patch-probe"
+        probe.mkdir(parents=True, exist_ok=True)
+        gypi = probe / "common.gypi"
+        gypi.write_text(
+            "x = 1\n'MACOSX_DEPLOYMENT_TARGET': '13.5',       # -mmacosx-version-min=13.5\ny = 2\n",
+            encoding="utf-8",
+        )
+        real = node_driver.PRODUCT_PATCHES
+        node_driver.PRODUCT_PATCHES = (
+            ("common.gypi", real[0][1], real[0][2]),
+        )
+        try:
+            first = node_driver.apply_product_patches(probe)
+            self.assertTrue(any("applied macOS floor" in line for line in first))
+            second = node_driver.apply_product_patches(probe)
+            self.assertTrue(any("already applied" in line for line in second))
+            self.assertIn("'26.0'", gypi.read_text(encoding="utf-8"))
+        finally:
+            node_driver.PRODUCT_PATCHES = real
+            gypi.unlink(missing_ok=True)
+            probe.rmdir()
+
+    def test_patch_rejects_unexpected_content(self):
+        from buildsys import node as node_driver
+
+        probe = REPO_ROOT / ".work" / "tmp" / "patch-probe-bad"
+        probe.mkdir(parents=True, exist_ok=True)
+        (probe / "common.gypi").write_text("nothing relevant here\n", encoding="utf-8")
+        try:
+            with self.assertRaises(Exception):
+                node_driver.apply_product_patches(probe)
+        finally:
+            (probe / "common.gypi").unlink(missing_ok=True)
+            probe.rmdir()
+
+
 class BootstrapTest(unittest.TestCase):
     def test_lock_matches_host(self):
         lock = inputs.load_json(REPO_ROOT / "bootstrap.lock.json")
