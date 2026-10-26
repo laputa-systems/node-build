@@ -136,7 +136,7 @@ def macho_tree_checks(
                     for directory in directories
                     if directory is not None and directory.is_dir()
                 ]
-                if not any(macho._inside(candidate, install) and candidate.is_file() for candidate in candidates):
+                if not any(macho.path_inside_root(candidate, install) and candidate.is_file() for candidate in candidates):
                     buckets["macho-unresolved-deps"].append(f"{name} -> {dependency}")
             elif dependency.startswith(("@loader_path/", "@executable_path/")) or dependency in ("@loader_path", "@executable_path"):
                 resolved = macho.resolve_image_path(dependency, image, install)

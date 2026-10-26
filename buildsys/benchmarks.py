@@ -52,10 +52,6 @@ def time_probe(binary: Path, probe: str, cwd: Path) -> float:
     return float(completed.stdout.strip().split()[-1])
 
 
-def collect(label: str, repeats: int, worker) -> Samples:
-    return Samples(label, tuple(worker() for _ in range(repeats)))
-
-
 def verdict(baseline: Samples, candidate: Samples) -> str:
     if not baseline.values_ms or not candidate.values_ms:
         return "inconclusive"

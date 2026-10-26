@@ -1,4 +1,14 @@
 {
-  "comment": "Compressed/installed size ceilings, measured from the first genuinely qualified macos release. No fabricated baselines.",
-  "budgets": {}
+  "comment": "Compressed/installed size ceilings. First ceilings measured from the qualified macos release 2026-10-26 with ~27% headroom for upstream patch variance. CI fails on exceed; a human reviews whether the growth is justified.",
+  "budgets": {
+    "aarch64-apple-darwin": {
+      "compressed_max_bytes": 56000000,
+      "installed_payload_max_bytes": 230000000,
+      "measured_compressed_bytes": 44023851,
+      "measured_installed_payload_bytes": 179704746,
+      "measured_artifact": "node-26.12.1-aarch64-apple-darwin-r1.tar.gz",
+      "measured_sha256": "29dba9925fc0ad3a2a75526f7b03efa129fdcb7434f7e21551e1ab20de207f71",
+      "rationale": "First genuinely qualified release. Single 118 MB PIE binary plus headers and LICENSE dominate the payload; headroom covers minor upstream size drift without hiding a linking regression."
+    }
+  }
 }

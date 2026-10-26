@@ -38,10 +38,15 @@ jobs:
       - run: python3 build.py build --target aarch64-apple-darwin
       - run: python3 build.py package --target aarch64-apple-darwin
       - run: python3 build.py qualify --target aarch64-apple-darwin
+      - run: python3 build.py check-budgets --target aarch64-apple-darwin
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: dist-aarch64-apple-darwin
-          path: dist/
+          path: |
+            dist/
+            build/aarch64-apple-darwin/build-receipt.json
+            build/aarch64-apple-darwin/package-record.json
+            build/aarch64-apple-darwin/qualify/qualify-record.json
           if-no-files-found: error
 
   assemble:

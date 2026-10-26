@@ -11,8 +11,6 @@ LICENSE_NAME = "LICENSE"
 
 LOCAL_REVISION_PREFIX = "r"
 
-RELEASE_TAG_EXAMPLE = "20261025"
-
 
 def release_title(version: str, tag: str) -> str:
     return f"node-{version}+{tag}"

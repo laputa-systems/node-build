@@ -21,10 +21,6 @@ CACHE_DIR = REPO_ROOT / "build" / "cache"
 SOURCES_LOCK = REPO_ROOT / "sources.lock.json"
 BOOTSTRAP_LOCK = REPO_ROOT / "bootstrap.lock.json"
 
-MILESTONE_PENDING = {
-    "reproduce": "NB-4",
-}
-
 
 def _fail(message: str) -> int:
     print(f"error: {message}", file=sys.stderr)
@@ -95,25 +91,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_pending(args: argparse.Namespace) -> int:
-    milestone = MILESTONE_PENDING[args.command]
-    return _fail(
-        f"{args.command} is not implemented until {milestone}; "
-        "this command fails closed rather than producing partial output"
-    )
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="build.py")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("doctor", "fetch", "build", "qualify", "package", "reproduce",
-                 "compare-reference", "controller-test", "assemble", "published-smoke"):
+                 "compare-reference", "controller-test", "assemble", "published-smoke",
+                 "check-budgets"):
         child = sub.add_parser(name)
         if name not in ("controller-test", "doctor"):
             child.add_argument("--target", default=None)
         if name == "doctor":
             child.add_argument("--target", default=None)
-        if name == "build":
+        if name in ("build", "reproduce"):
             child.add_argument("--jobs", type=int, default=10)
         if name in ("assemble", "published-smoke"):
             child.add_argument("--tag", required=True)
@@ -155,10 +144,6 @@ def main(argv: list[str] | None = None) -> int:
         runner = unittest.TextTestRunner(verbosity=2)
         result = runner.run(suite)
         return 0 if result.wasSuccessful() else 1
-    if args.command in MILESTONE_PENDING:
-        if args.target is None:
-            args.target = resolve_target(None)
-        return cmd_pending(args)
     if args.command == "build":
         if args.target is None:
             args.target = resolve_target(None)
@@ -220,6 +205,28 @@ def main(argv: list[str] | None = None) -> int:
             return _fail(str(error))
         for name, probe in record["probes"].items():
             print(f"{name}: {probe['verdict']}")
+        return 0
+    if args.command == "check-budgets":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            from buildsys import budgets
+
+            record = budgets.check_budgets(REPO_ROOT, args.target)
+        except (budgets.BudgetError, Exception) as error:
+            return _fail(str(error))
+        print(f"budgets ok: compressed {record['compressed']}, payload {record['payload']}")
+        return 0
+    if args.command == "reproduce":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            from buildsys import reproduce as reproduce_runner
+
+            record = reproduce_runner.reproduce(REPO_ROOT, args.target, args.jobs)
+        except (reproduce_runner.ReproduceError, Exception) as error:
+            return _fail(str(error))
+        print(f"reproduce verdict: {record['verdict']}")
         return 0
     return _fail(f"unknown command: {args.command}")
 

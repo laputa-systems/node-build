@@ -256,6 +256,27 @@ def signature_status(path: Path) -> tuple[bool, str]:
     return result.returncode == 0, detail
 
 
+def signature_metadata_ranges(path: Path) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    for command in load_commands(path):
+        if command.cmd == LC_UUID:
+            ranges.append((command.offset + 8, 16))
+        elif command.cmd == LC_CODE_SIGNATURE:
+            data_offset, data_size = struct.unpack_from("<II", command.payload, 0)
+            if data_size:
+                ranges.append((data_offset, data_size))
+    return ranges
+
+
+def normalized_bytes(path: Path) -> bytes:
+    raw = bytearray(Path(path).read_bytes())
+    for offset, size in signature_metadata_ranges(path):
+        if 0 <= offset < len(raw):
+            end = min(offset + size, len(raw))
+            raw[offset:end] = b"\x00" * (end - offset)
+    return bytes(raw)
+
+
 def find_machos(root: Path) -> list[Path]:
     return sorted(
         path for path in Path(root).rglob("*")
@@ -263,7 +284,7 @@ def find_machos(root: Path) -> list[Path]:
     )
 
 
-def _inside(path: Path, root: Path) -> bool:
+def path_inside_root(path: Path, root: Path) -> bool:
     try:
         return os.path.commonpath((str(path), str(root))) == str(root)
     except ValueError:
@@ -293,7 +314,7 @@ def resolve_image_path(
     else:
         return None
     resolved = candidate.resolve()
-    return resolved if _inside(resolved, install) else None
+    return resolved if path_inside_root(resolved, install) else None
 
 
 def rpath_directories(

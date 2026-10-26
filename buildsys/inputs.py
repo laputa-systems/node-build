@@ -107,7 +107,3 @@ def render_json(data: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, indent=2, sort_keys=True) + "\n"
     path.write_text(text, encoding="utf-8")
-
-
-def json_bytes(data: dict) -> bytes:
-    return (json.dumps(data, indent=2, sort_keys=True) + "\n").encode("utf-8")

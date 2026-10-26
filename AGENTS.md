@@ -27,13 +27,16 @@ python3 build.py qualify --target aarch64-apple-darwin
 python3 build.py package --target aarch64-apple-darwin
 python3 build.py reproduce --target aarch64-apple-darwin
 python3 build.py compare-reference --target aarch64-apple-darwin
+python3 build.py assemble --target aarch64-apple-darwin --tag YYYYMMDD --repo owner/name
+python3 build.py published-smoke --target aarch64-apple-darwin --tag YYYYMMDD
+python3 build.py check-budgets --target aarch64-apple-darwin
 python3 build.py controller-test
 ```
 
 `doctor` and `fetch` verify the host toolchain and pinned sources.
 Acquisition (`fetch`) may use the network; compilation runs from verified
-cached inputs only. `build`, `qualify`, `package`, `reproduce`, and
-`compare-reference` fail closed until their milestone lands them.
+cached inputs only. `assemble` needs `--repo owner/name` and refuses dirty
+checkouts, tag collisions, and unqualified archives.
 
 ## Inputs and build records
 
