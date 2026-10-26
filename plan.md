@@ -27,8 +27,8 @@
     with measured numbers logged (not gating).
   - D8. Docs: `README.md`, `AGENTS.md`, `docs/SECURITY.md`, `docs/REPRODUCE.md`,
     `docs/COMPATIBILITY.md`, `docs/PERFORMANCE.md` — concise, no duplicated or unproven claims.
-- **Last accepted checkpoint:** `0aa95a7` (NB-1: controller, locks, doctor/fetch).
-- **Provisional work:** none.
+- **Last accepted checkpoint:** `0aa95a7` (NB-1) + NB-2 build proven (commit pending).
+- **Provisional work:** `1356e0e` (NB-3/4/5 scaffolding, unit-tested, acceptance pending).
 - **Current steering decision:** proceed linearly NB-1 → NB-5, width 1 (max 2 for disjoint
   slices), provisional-work cap 2. Next substantive milestone: NB-2 (real PIE `node` binary).
 - **Next steering checkpoint:** after NB-1 validation wave, then after each item; if no wave
@@ -376,6 +376,11 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
   (they are parity/hardening, not optimization).
 - Campaign log: no runs yet. Executor appends accepted waves, parked items with
   prerequisite + retry condition, and steering rulings here (short; header stays current).
+- 2026-10-26 (steering after NB-2): NB-2 accepted — native `make -j10` exit 0, staged
+  `out/Release/node` is arm64 EXECUTE + PIE, codesign valid, `v26.12.1`, small-ICU `Intl`
+  correct, snapshot enabled, N-API fixture answer 42, link closure is system-only.
+  `python3 build.py build` driver proven incremental (38 s) with build-receipt.json.
+  Ruling: proceed to NB-3 package + qualify.
 - 2026-10-26 (steering after NB-1): NB-1 accepted — 16 controller tests green, doctor
   matches locked toolchain, fetch verified 127166097-byte source, linux/unknown targets
   fail closed with exit 2, unimplemented commands fail closed naming their milestone.
