@@ -2,8 +2,8 @@
 
 ## Header
 
-- **Status:** paused 2026-10-26 — winddown complete, see Handoff below.
-- **Resume:** re-read this doc and run the restore chain in the Handoff, then final closeout.
+- **Status:** COMPLETE 2026-10-26 — all deliverables met, see final report in campaign log.
+- **Resume:** n/a — campaign closed. To rebuild: `python3 build.py build && python3 build.py package && python3 build.py qualify`.
 - **Goal:** A functioning, tested `node-build` repository in the local tree that produces a
   lean, PIE-hardened, relocatable Node.js distribution for `aarch64-apple-darwin` from locked
   upstream Node v26.12.1 sources, with transactional release assembly and native qualification.
@@ -28,8 +28,8 @@
     with measured numbers logged (not gating).
   - D8. Docs: `README.md`, `AGENTS.md`, `docs/SECURITY.md`, `docs/REPRODUCE.md`,
     `docs/COMPATIBILITY.md`, `docs/PERFORMANCE.md` — concise, no duplicated or unproven claims.
-- **Last accepted checkpoint:** NB-3 (`dist/aarch64-apple-darwin/node-26.12.1-aarch64-apple-darwin-r1.tar.gz`, sha `29dba992…`, 17/17 smoke; archive bytes intact, build tree mid-restore — see Handoff).
-- **Provisional work:** none (restore chain parked, fully retryable).
+- **Last accepted checkpoint:** NB-5 close (`cce5fe41…` archive qualified 17/17, budgets green, 53/53 tests, compare no-measurable-difference).
+- **Provisional work:** none.
 - **Current steering decision:** winddown — no new items; land the restore chain, then final closeout commit.
 - **Next steering checkpoint:** on resume, before running the restore chain.
 
@@ -435,6 +435,26 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
 
 ## Decision log and campaign log
 
+- 2026-10-26 (closeout, final report): all deliverables met on `main`.
+  Commands: `doctor` (toolchain pinned: Xcode 27.1, SDK 27.0, clang 21.0.0),
+  `fetch` (127166097-byte source verified), `build` (native `-mcpu=apple-m1`,
+  small-ICU, no-npm, `common.gypi` floor patch 13.5→26.0), `package`
+  (install-tree `node/bin/node+include/node+LICENSE`, 44.0 MB tar.gz),
+  `qualify` (22 product checks + 17/17 loopback smoke + 4/4 relocation, incl.
+  path with spaces), `check-budgets` (44.0/179.7 MB vs 56/230 MB ceilings),
+  `assemble` + `published-smoke` (contract-exact asset set, 17/17 on published
+  bytes; placeholder repo removed afterwards), `compare-reference`
+  (no-measurable-difference both probes vs same-version official binary),
+  `reproduce` (honest "not reproducible": raw `d22e8091…` vs `69f7f68d…`,
+  normalized `c1f704…` vs `3a04c7…`). Platform build outcomes: macOS arm64
+  only — Linux parked per O1, three consecutive native builds all green.
+  Security verification: whole-tree Mach-O gate (borrowed @ `5227de3`) green —
+  1 thin arm64 image, MH_PIE, exact minos 26.0, system-only dep closure,
+  `--strict` signature, no universal, stage-refs clean. Compressed 44023473,
+  installed payload 179704746 bytes. Unresolved blockers: none for this scope.
+  Tested vs planned: everything tested is in `tests/` (53 green); Linux
+  targets, PGO promotion, and reproduce-mechanism diagnosis are parked,
+  not claimed.
 - 2026-10-26 (winddown): parked the in-flight restore chain (kill was procedural;
   retry is the idempotent restore chain in the Handoff). All NB-1…NB-5 work merged on
   `main`; no lanes, no worktrees, no processes. Status paused; resume via Handoff.

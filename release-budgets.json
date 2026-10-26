@@ -4,10 +4,10 @@
     "aarch64-apple-darwin": {
       "compressed_max_bytes": 56000000,
       "installed_payload_max_bytes": 230000000,
-      "measured_compressed_bytes": 44023851,
+      "measured_compressed_bytes": 44023473,
       "measured_installed_payload_bytes": 179704746,
       "measured_artifact": "node-26.12.1-aarch64-apple-darwin-r1.tar.gz",
-      "measured_sha256": "29dba9925fc0ad3a2a75526f7b03efa129fdcb7434f7e21551e1ab20de207f71",
+      "measured_sha256": "cce5fe418b52550fbd232f0ff8f075d94263613b6b5d9695b93cd1d9d0e9fdde",
       "rationale": "First genuinely qualified release. Single 118 MB PIE binary plus headers and LICENSE dominate the payload; headroom covers minor upstream size drift without hiding a linking regression."
     }
   }
