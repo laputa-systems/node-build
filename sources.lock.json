@@ -1,0 +1,25 @@
+{
+  "comment": "Project source lock. Hashes verified against downloaded bytes before use.",
+  "inputs": [
+    {
+      "name": "node",
+      "version": "26.12.1",
+      "url": "https://nodejs.org/dist/v26.12.1/node-v26.12.1.tar.gz",
+      "sha256": "717244a8d757672ec86aae5077fca31e50f84b094441ec51bdf397aab12c304e",
+      "size": 127166097,
+      "role": "source",
+      "license": "MIT",
+      "purpose": "The distributed interpreter and standard library"
+    },
+    {
+      "name": "node-headers",
+      "version": "26.12.1",
+      "url": "https://nodejs.org/dist/v26.12.1/node-v26.12.1-headers.tar.gz",
+      "sha256": "a983cdcea96e85d137b9b807cc776bb5564fc9e3e1c9185d59bbfaa781efd08f",
+      "size": 10317866,
+      "role": "reference",
+      "license": "MIT",
+      "purpose": "Reference headers for addon ABI comparison only, never a build input"
+    }
+  ]
+}

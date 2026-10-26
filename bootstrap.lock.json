@@ -1,0 +1,21 @@
+{
+  "comment": "macOS build bootstrap lock. Toolchain identity is observed on the build host and re-verified by doctor.",
+  "toolchain": {
+    "xcode": "27.1",
+    "sdk": "27.0",
+    "clang": "21.0.0",
+    "host_machine": "arm64",
+    "kind": "native Apple Xcode toolchain, no LLVM archive",
+    "provenance": "observed on build host 2026-10-26 via xcodebuild, xcrun, clang --version"
+  },
+  "cpu_baseline": {
+    "cflag": "-mcpu=apple-m1",
+    "deployment_target": "13.5",
+    "deployment_provenance": "upstream nodejs/node v26.12.1 common.gypi MACOSX_DEPLOYMENT_TARGET"
+  },
+  "host_requirements": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "build_python": "3.15.1"
+  }
+}

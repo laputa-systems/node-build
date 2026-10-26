@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from buildsys import bootstrap, inputs, recipes
+from buildsys.targets import (
+    SUPPORTED_TRIPLES,
+    UnsupportedTargetError,
+    native_target,
+    target_for_triple,
+)
+
+REPO_ROOT = Path(__file__).resolve().parent
+CACHE_DIR = REPO_ROOT / "build" / "cache"
+SOURCES_LOCK = REPO_ROOT / "sources.lock.json"
+BOOTSTRAP_LOCK = REPO_ROOT / "bootstrap.lock.json"
+
+MILESTONE_PENDING = {
+    "build": "NB-2",
+    "qualify": "NB-3",
+    "package": "NB-3",
+    "reproduce": "NB-4",
+    "compare-reference": "NB-5",
+}
+
+
+def _fail(message: str) -> int:
+    print(f"error: {message}", file=sys.stderr)
+    return 2
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    try:
+        wanted = target_for_triple(args.target)
+    except UnsupportedTargetError as error:
+        return _fail(str(error))
+    lock = inputs.load_json(BOOTSTRAP_LOCK)
+    try:
+        bootstrap.validate_bootstrap_lock(lock)
+    except ValueError as error:
+        return _fail(str(error))
+    try:
+        identity = bootstrap.current_identity()
+    except (RuntimeError, OSError) as error:
+        return _fail(f"toolchain inspection failed: {error}")
+    print(f"target: {wanted.triple}")
+    print(f"family: {wanted.family}")
+    print(f"cpu baseline: {wanted.cpu_baseline_cflag}")
+    print(f"deployment target: {wanted.deployment_target}")
+    print(f"xcode: {identity.xcode_version}")
+    print(f"sdk: {identity.sdk_version} ({identity.sdk_path})")
+    print(f"clang: {identity.clang_version}")
+    print(f"host: {identity.host_machine} {identity.host_system}")
+    findings = bootstrap.check_locked_toolchain(lock, identity)
+    findings += bootstrap.check_locked_baseline(lock)
+    failed = [finding for finding in findings if not finding.ok]
+    for finding in findings:
+        print(f"[{'ok' if finding.ok else 'MISMATCH'}] {finding.name}: {finding.detail}")
+    if failed:
+        return _fail("toolchain does not match bootstrap.lock.json")
+    recipes.validate_recipe(recipes.macos_recipe())
+    print("[ok] recipe: required flags present, no banned flags")
+    return 0
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    try:
+        wanted = target_for_triple(args.target)
+    except UnsupportedTargetError as error:
+        return _fail(str(error))
+    _ = wanted
+    try:
+        lock = inputs.load_lock(SOURCES_LOCK)
+    except (OSError, inputs.VerificationError) as error:
+        return _fail(str(error))
+    for entry in lock["inputs"]:
+        if entry["role"] != "source":
+            continue
+        destination = CACHE_DIR / f"{entry['name']}-{entry['version']}.tar.gz"
+        if destination.exists():
+            try:
+                inputs.verify_file(destination, entry["sha256"], entry["size"])
+                print(f"cached: {destination} (verified)")
+                continue
+            except inputs.VerificationError as error:
+                print(f"stale cache, refetching: {error}")
+        print(f"fetching: {entry['url']}")
+        try:
+            inputs.fetch_url(entry["url"], destination, entry["sha256"], entry["size"])
+        except (OSError, inputs.VerificationError) as error:
+            return _fail(str(error))
+        print(f"cached: {destination} (verified)")
+    return 0
+
+
+def cmd_pending(args: argparse.Namespace) -> int:
+    milestone = MILESTONE_PENDING[args.command]
+    return _fail(
+        f"{args.command} is not implemented until {milestone}; "
+        "this command fails closed rather than producing partial output"
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="build.py")
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("doctor", "fetch", "build", "qualify", "package", "reproduce",
+                 "compare-reference", "controller-test"):
+        child = sub.add_parser(name)
+        if name not in ("controller-test", "doctor"):
+            child.add_argument("--target", default=None)
+        if name == "doctor":
+            child.add_argument("--target", default=None)
+    return parser
+
+
+def resolve_target(raw: str | None) -> str:
+    if raw is not None:
+        return raw
+    try:
+        return native_target().triple
+    except UnsupportedTargetError:
+        print(
+            f"error: no --target given and this machine has no target description "
+            f"(supported: {sorted(SUPPORTED_TRIPLES)})",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "doctor":
+        args.target = resolve_target(args.target)
+        return cmd_doctor(args)
+    if args.command == "fetch":
+        args.target = resolve_target(args.target)
+        return cmd_fetch(args)
+    if args.command == "controller-test":
+        import unittest
+
+        loader = unittest.TestLoader()
+        suite = loader.discover("tests", pattern="test_*.py", top_level_dir=str(REPO_ROOT))
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        return 0 if result.wasSuccessful() else 1
+    if args.command in MILESTONE_PENDING:
+        if args.target is None:
+            args.target = resolve_target(None)
+        return cmd_pending(args)
+    return _fail(f"unknown command: {args.command}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
