@@ -449,6 +449,13 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
   73/73 green. Remaining: `assemble` / `published-smoke` (need a clean
   checkout; tree holds the uncommitted linux port) and the closeout commit.
   No pushes, no releases.
+- 2026-10-26 (linux assembly self-test): committed the port (`085cce8`),
+  then `assemble --tag 20261026 --repo local/self-test` produced the
+  contract-exact asset set (one install_only_stripped tarball,
+  artifact-x86_64-unknown-linux-musl.json, assembly/download/smoke
+  metadata, SHA256SUMS) and `published-smoke` passed 17/17 on the
+  assembled bytes. Placeholder output removed afterwards; tree clean.
+  Linux leg complete. No pushes, no releases.
 - 2026-10-26 (linux build+qualify green, first pass): native Alpine build
   exit 0 (`-march=x86-64-v2`, small-ICU, no-npm, no source patch — the
   `common.gypi` floor patch is macOS-only). `package` produced
