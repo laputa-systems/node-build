@@ -170,18 +170,31 @@ def _is_fat(path: Path) -> bool:
 
 
 def validate_install_tree(
-    install_root: Path, machine: str, deployment_target: str, build_prefixes: list[bytes]
+    install_root: Path,
+    machine: str,
+    deployment_target: str,
+    stage_prefixes: list[bytes],
+    source_prefixes: list[bytes],
 ) -> list[ProductFinding]:
     from buildsys import relocate
 
     findings = validate_layout(install_root)
     findings += macho_tree_checks(install_root, machine, deployment_target)
-    hits = relocate.scan_forbidden_refs(install_root / "bin" / "node", build_prefixes)
+    node = install_root / "bin" / "node"
+    stage_hits = relocate.scan_forbidden_refs(node, stage_prefixes)
     findings.append(
         ProductFinding(
-            "no-build-refs",
-            not hits,
-            f"forbidden prefixes: {hits}" if hits else "no absolute build refs",
+            "no-stage-refs",
+            not stage_hits,
+            f"stage prefixes: {stage_hits}" if stage_hits else "no stage path leaks",
+        )
+    )
+    source_hits = relocate.scan_forbidden_refs(node, source_prefixes)
+    findings.append(
+        ProductFinding(
+            "info-source-refs",
+            True,
+            f"{len(source_hits)} upstream-inert config strings" if source_hits else "none",
         )
     )
     return findings

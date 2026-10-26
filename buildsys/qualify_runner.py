@@ -35,6 +35,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
         extracted,
         wanted.machine,
         wanted.deployment_target,
+        [str(repo_root / "build" / triple / "stage").encode()],
         [str(node_driver.source_dir(repo_root)).encode()],
     )
     smoke_work = work / "smoke-work"
@@ -50,6 +51,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
         extracted,
         work / "reloc-a",
         work / "reloc b with spaces",
+        [str(repo_root / "build" / triple / "stage").encode()],
         [str(node_driver.source_dir(repo_root)).encode()],
     )
     record = {

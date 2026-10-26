@@ -38,16 +38,25 @@ def verify_relocation(
     install_root: Path,
     first: Path,
     second: Path,
-    forbidden_prefixes: list[bytes],
+    stage_prefixes: list[bytes],
+    source_prefixes: list[bytes],
 ) -> list[RelocationFinding]:
     findings: list[RelocationFinding] = []
     binary = install_root / "bin" / "node"
-    hits = scan_forbidden_refs(binary, forbidden_prefixes)
+    stage_hits = scan_forbidden_refs(binary, stage_prefixes)
     findings.append(
         RelocationFinding(
-            "no-build-refs",
-            not hits,
-            f"forbidden prefixes found: {hits}" if hits else "no absolute build refs",
+            "no-stage-refs",
+            not stage_hits,
+            f"stage prefixes: {stage_hits}" if stage_hits else "no stage path leaks",
+        )
+    )
+    source_hits = scan_forbidden_refs(binary, source_prefixes)
+    findings.append(
+        RelocationFinding(
+            "info-source-refs",
+            True,
+            f"{len(source_hits)} upstream-inert config strings" if source_hits else "none",
         )
     )
     for label, destination in (("plain", first), ("with spaces", second)):

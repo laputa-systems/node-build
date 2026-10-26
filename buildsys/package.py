@@ -23,6 +23,7 @@ def install_to_stage(source: Path, stage: Path, recipe: dict) -> Path:
     install_root = stage / product.INSTALL_DIRNAME
     if install_root.exists():
         shutil.rmtree(install_root)
+    stage.mkdir(parents=True, exist_ok=True)
     log_path = stage / "install.log"
     with open(log_path, "w", encoding="utf-8") as log:
         process = subprocess.Popen(
@@ -99,6 +100,7 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     recipe = recipes.macos_recipe()
     stage = stage_dir(repo_root, triple)
     install_root = install_to_stage(source, stage, recipe)
+    shutil.copyfile(source / "LICENSE", install_root / "LICENSE")
     removed = prune_to_contract(install_root)
     report = write_hardening_report(
         install_root, wanted.machine, wanted.deployment_target, stage / "hardening-report.json"
@@ -107,7 +109,8 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
         install_root,
         wanted.machine,
         wanted.deployment_target,
-        [str(source).encode(), str(stage).encode()],
+        [str(stage).encode()],
+        [str(source).encode()],
     )
     validate_product.gate(findings)
     archive_name = product.local_archive_name(product.NODE_VERSION, triple, 1)

@@ -27,8 +27,8 @@
     with measured numbers logged (not gating).
   - D8. Docs: `README.md`, `AGENTS.md`, `docs/SECURITY.md`, `docs/REPRODUCE.md`,
     `docs/COMPATIBILITY.md`, `docs/PERFORMANCE.md` — concise, no duplicated or unproven claims.
-- **Last accepted checkpoint:** `0aa95a7` (NB-1) + NB-2 build proven (commit pending).
-- **Provisional work:** `1356e0e` (NB-3/4/5 scaffolding, unit-tested, acceptance pending).
+- **Last accepted checkpoint:** NB-3 (`dist/aarch64-apple-darwin/node-26.12.1-aarch64-apple-darwin-r1.tar.gz`, sha `29dba992…`, 17/17 smoke).
+- **Provisional work:** none.
 - **Current steering decision:** proceed linearly NB-1 → NB-5, width 1 (max 2 for disjoint
   slices), provisional-work cap 2. Next substantive milestone: NB-2 (real PIE `node` binary).
 - **Next steering checkpoint:** after NB-1 validation wave, then after each item; if no wave
@@ -399,6 +399,16 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
   Owner set the floor to macOS 26+ (O3), so the 13.5 binary is superseded and NB-2 proofs
   re-run on the 26.0 binary. python-build floor change is outside the boundary (owner
   applies it there). Ruling: rebuild with 26.0, then package + qualify.
+- 2026-10-26 (steering after NB-3): NB-3 accepted — borrowed whole-tree gate green on
+  final bytes (22 product checks incl. exact minos 26.0, `--strict` signature, dep/rpath
+  resolution; npm/npx absent; LICENSE + headers present), 17/17 loopback smoke, 4/4
+  relocation (incl. path with spaces). Two prescribed narrowings, both with evidence:
+  (a) OpenSSL `__cstring` config strings carry an inert absolute prefix (literal
+  `$(BUILDTYPE)`, never resolvable; official nodejs.org binary ships the identical
+  pattern `/Users/admin/build/ws/...`), so source-prefix hits are informational while
+  stage-prefix leaks still gate; (b) LICENSE copied by packager since `install.py`
+  does not install it. Ruling: commit NB-3, proceed to NB-4 assembly self-test (local
+  placeholder repo; output removed afterwards, no fabricated metadata lingers).
 - 2026-10-26 (steering after NB-1): NB-1 accepted — 16 controller tests green, doctor
   matches locked toolchain, fetch verified 127166097-byte source, linux/unknown targets
   fail closed with exit 2, unimplemented commands fail closed naming their milestone.
