@@ -32,6 +32,10 @@ def differing_chunks(first: bytes, second: bytes, size: int = 1 << 20) -> list[i
 def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
     from buildsys import node as node_driver
 
+    keep = repo_root / "build" / "reproduce-keep"
+    if keep.exists():
+        shutil.rmtree(keep)
+    keep.mkdir(parents=True)
     attempts: list[dict] = []
     retained: list[Path] = []
     for attempt in (1, 2):
@@ -39,7 +43,7 @@ def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
         binary = node_driver.build(repo_root, triple, jobs)
         raw = binary.read_bytes()
         normalized = macho.normalized_bytes(binary)
-        kept = repo_root / "build" / triple / f"reproduce-attempt-{attempt}-node"
+        kept = keep / f"attempt-{attempt}-node"
         kept.write_bytes(raw)
         retained.append(kept)
         attempts.append(
