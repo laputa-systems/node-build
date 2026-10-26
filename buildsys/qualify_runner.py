@@ -33,6 +33,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
         raise QualifyError(f"archive has no bin/node: {archive}")
     findings = validate_product.validate_install_tree(
         extracted,
+        wanted.machine,
         wanted.deployment_target,
         [str(node_driver.source_dir(repo_root)).encode()],
     )

@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import shutil
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
 from buildsys import inputs, macho, product, validate_product
+from buildsys.node import configure_env as node_configure_env
 
 
 class PackageError(Exception):
@@ -17,18 +19,25 @@ def stage_dir(repo_root: Path, triple: str) -> Path:
     return repo_root / "build" / triple / "stage"
 
 
-def install_to_stage(source: Path, stage: Path) -> Path:
+def install_to_stage(source: Path, stage: Path, recipe: dict) -> Path:
     install_root = stage / product.INSTALL_DIRNAME
     if install_root.exists():
         shutil.rmtree(install_root)
-    completed = subprocess.run(
-        ["make", "install", f"DESTDIR={stage}", "PREFIX=/node"],
-        cwd=source, capture_output=True, text=True, timeout=1200,
-    )
-    if completed.returncode != 0:
-        raise PackageError(f"make install failed:\n{completed.stdout}\n{completed.stderr}")
+    log_path = stage / "install.log"
+    with open(log_path, "w", encoding="utf-8") as log:
+        process = subprocess.Popen(
+            [sys.executable, "tools/install.py", "install",
+             "--dest-dir", str(stage), "--prefix", "/node"],
+            cwd=source, env=node_configure_env(recipe),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        assert process.stdout is not None
+        for line in process.stdout:
+            log.write(line)
+        if process.wait() != 0:
+            raise PackageError(f"install failed; see {log_path}")
     if not install_root.is_dir():
-        raise PackageError(f"make install produced no tree: {install_root}")
+        raise PackageError(f"install produced no tree: {install_root}")
     return install_root
 
 
@@ -49,22 +58,19 @@ def prune_to_contract(install_root: Path) -> list[str]:
 
 
 def write_hardening_report(
-    install_root: Path, deployment_target: str, destination: Path
+    install_root: Path, machine: str, deployment_target: str, destination: Path
 ) -> dict:
-    info = macho.inspect(install_root / product.STAGED_NODE)
+    images = macho.find_machos(install_root)
     record = {
-        "binary": product.STAGED_NODE,
-        "arch": f"{info.cputype:#x}",
-        "filetype": info.filetype,
-        "pie": info.pie,
-        "minos": info.minos,
-        "sdk": info.sdk,
-        "dependencies": list(info.dependencies),
-        "rpaths": list(info.rpaths),
+        "images": {
+            str(image.relative_to(install_root)): macho.inspect(image) for image in images
+        },
         "deployment_target": deployment_target,
         "checks": [
             {"name": finding.name, "ok": finding.ok, "detail": finding.detail}
-            for finding in macho.validate_executable(info, deployment_target)
+            for finding in validate_product.macho_tree_checks(
+                install_root, machine, deployment_target
+            )
         ],
     }
     inputs.render_json(record, destination)
@@ -88,14 +94,18 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     from buildsys.targets import target_for_triple
 
     wanted = target_for_triple(triple)
+    from buildsys import recipes
+
+    recipe = recipes.macos_recipe()
     stage = stage_dir(repo_root, triple)
-    install_root = install_to_stage(source, stage)
+    install_root = install_to_stage(source, stage, recipe)
     removed = prune_to_contract(install_root)
     report = write_hardening_report(
-        install_root, wanted.deployment_target, stage / "hardening-report.json"
+        install_root, wanted.machine, wanted.deployment_target, stage / "hardening-report.json"
     )
     findings = validate_product.validate_install_tree(
         install_root,
+        wanted.machine,
         wanted.deployment_target,
         [str(source).encode(), str(stage).encode()],
     )

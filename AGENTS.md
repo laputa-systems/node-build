@@ -9,7 +9,7 @@ partially implemented.
 
 | Triple | Platform/compiler | Baseline and deployment |
 | --- | --- | --- |
-| `aarch64-apple-darwin` | Native Apple Silicon macOS; Xcode Apple clang | `-mcpu=apple-m1`; deployment target 13.5 (upstream `common.gypi`) |
+| `aarch64-apple-darwin` | Native Apple Silicon macOS; Xcode Apple clang | `-mcpu=apple-m1`; deployment target 26.0 (macOS 26+ only) |
 
 `buildsys/targets.py` owns the supported set. Linux triples fail closed as
 deferred. `buildsys/product.py` is the single source of truth for archive and

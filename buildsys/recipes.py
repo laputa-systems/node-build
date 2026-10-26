@@ -28,7 +28,7 @@ def macos_recipe() -> dict:
         ],
         "cflags": ["-mcpu=apple-m1"],
         "optimization": "-O3",
-        "deployment_target": "13.5",
+        "deployment_target": "26.0",
     }
 
 

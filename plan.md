@@ -86,10 +86,19 @@
   release gates are parked (see Non-goals). The single-target prerelease in D6 supersedes the
   draft's all-three-platforms gate for this campaign; the three-target contract returns if the
   owner re-enables Linux.
-- O2. **python-build security work is still in flux: use it for design conventions only.**
-  Do not copy its TLS/crypto backend, validator internals, or any security-sensitive
-  implementation. node-build keeps Node's supported crypto backend, implements its own Mach-O
-  validator and tests, and proves its own hardening evidence.
+- O2. **python-build hardening is finished: borrow its machinery.** Owner direction
+  2026-10-26 supersedes the earlier do-not-copy rule. `buildsys/macho.py`
+  adapts `../python-build/buildsys/macho.py` at `5227de3` (parser, `signature_status`,
+  `find_machos`, `@rpath`/`@loader_path` resolution, system-path policy), and
+  `macho_tree_checks` follows its `macho_checks` categories (whole-tree scan, fat
+  rejection, exact minos match, dep/rpath resolution, per-image `--strict` signatures,
+  non-PIE executables). Omitted with reason: install-name edit helpers (node ships no
+  private dylibs) and reproduce-normalization helpers (no consumer yet). Node keeps its
+  own supported crypto backend; no TLS replacement work.
+- O3. **macOS 26+ only.** Owner direction 2026-10-26: the product floor is macOS 26.0
+  (host runs macOS 27). Same policy applies to python-build (outside this campaign's
+  boundary — owner applies it there). Upstream Node 26 supports 13.5+, but this product
+  sets a higher documented floor, matching python-build's artifact minimum.
 
 ### Prescribed (settled from the code, the evidence, or sound practice)
 
@@ -102,9 +111,10 @@
   `docs/REPRODUCE.md`. Reversal: only if the owner changes the Node version or reference.
 - P2. macOS toolchain: native Apple Silicon, pinned Xcode + SDK recorded in
   `bootstrap.lock.json` (host floor and deployment minimum recorded separately, as python-build
-  does). Observed host 2026-10-26: Xcode 27.1, SDK 27.0, Apple clang 21.0.0, `arm64`. CPU
-  baseline `-mcpu=apple-m1`. Never `-march=native`, never `-ffast-math`, never disable
-  memory-safety checks for benchmarks. Reason: portability and the draft's explicit bans.
+  does). Observed host 2026-10-26: Xcode 27.1, SDK 27.0, Apple clang 21.0.0, `arm64`. Product
+  floor macOS 26.0 (O3). CPU baseline `-mcpu=apple-m1`. Never `-march=native`, never
+  `-ffast-math`, never disable memory-safety checks for benchmarks. Reason: portability
+  and the draft's explicit bans.
 - P3. Feature policy (lean but fully practical): V8 JIT/snapshots/code-cache on; CJS+ESM;
   `node:test`, workers, child processes, streams, fs/net; HTTP/HTTPS/HTTP2/TLS/WebCrypto/
   `node:crypto`; compression; N-API addon loading + shipped headers; inspector stays unless
@@ -381,6 +391,14 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
   correct, snapshot enabled, N-API fixture answer 42, link closure is system-only.
   `python3 build.py build` driver proven incremental (38 s) with build-receipt.json.
   Ruling: proceed to NB-3 package + qualify.
+- 2026-10-26 (steering: make-install hang + floor change). Root cause of the NB-3 package
+  timeout: `make install` depends on `all`, and the redundant `./configure` re-run in
+  `build` had invalidated the tree, so packaging retriggered a serial rebuild past the
+  1200 s timeout. Fixes: `build` skips configure when the recorded recipe fingerprint
+  matches; `package` invokes `tools/install.py` directly instead of `make install`.
+  Owner set the floor to macOS 26+ (O3), so the 13.5 binary is superseded and NB-2 proofs
+  re-run on the 26.0 binary. python-build floor change is outside the boundary (owner
+  applies it there). Ruling: rebuild with 26.0, then package + qualify.
 - 2026-10-26 (steering after NB-1): NB-1 accepted — 16 controller tests green, doctor
   matches locked toolchain, fetch verified 127166097-byte source, linux/unknown targets
   fail closed with exit 2, unimplemented commands fail closed naming their milestone.

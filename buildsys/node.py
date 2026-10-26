@@ -47,7 +47,32 @@ def ensure_extracted(repo_root: Path) -> Path:
     return target
 
 
-def run_configure(source: Path, recipe: dict) -> None:
+def configured_marker(repo_root: Path, triple: str) -> Path:
+    return work_dir(repo_root, triple) / "configured.json"
+
+
+def recipe_fingerprint(recipe: dict) -> str:
+    import hashlib
+
+    return hashlib.sha256(
+        json.dumps(recipe, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def needs_configure(source: Path, repo_root: Path, triple: str, recipe: dict) -> bool:
+    marker = configured_marker(repo_root, triple)
+    if not marker.is_file():
+        return True
+    try:
+        recorded = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True
+    return recorded.get("recipe_sha256") != recipe_fingerprint(recipe) or not (
+        source / "config.mk"
+    ).exists()
+
+
+def run_configure(source: Path, repo_root: Path, triple: str, recipe: dict) -> None:
     command = recipes.configure_command(str(source), recipe)
     completed = subprocess.run(
         command, cwd=source, env=configure_env(recipe),
@@ -55,6 +80,10 @@ def run_configure(source: Path, recipe: dict) -> None:
     )
     if completed.returncode != 0:
         raise BuildError(f"configure failed:\n{completed.stdout}\n{completed.stderr}")
+    inputs.render_json(
+        {"recipe_sha256": recipe_fingerprint(recipe), "command": command},
+        configured_marker(repo_root, triple),
+    )
 
 
 def run_make(source: Path, recipe: dict, jobs: int, log_path: Path) -> None:
@@ -106,10 +135,11 @@ def write_receipt(repo_root: Path, triple: str, recipe: dict, extra: dict) -> Pa
 def build(repo_root: Path, triple: str, jobs: int) -> Path:
     from buildsys.targets import target_for_triple
 
-    wanted = target_for_triple(triple)
+    target_for_triple(triple)
     recipe = recipes.macos_recipe()
     source = ensure_extracted(repo_root)
-    run_configure(source, recipe)
+    if needs_configure(source, repo_root, triple, recipe):
+        run_configure(source, repo_root, triple, recipe)
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
     write_receipt(repo_root, triple, recipe, {"built_node": str(binary)})

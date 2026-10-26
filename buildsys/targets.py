@@ -23,7 +23,7 @@ DARWIN_ARM64 = Target(
     machine="arm64",
     family="macos",
     cpu_baseline_cflag="-mcpu=apple-m1",
-    deployment_target="13.5",
+    deployment_target="26.0",
     executable_format="mach-o",
 )
 

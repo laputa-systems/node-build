@@ -10,8 +10,8 @@
   },
   "cpu_baseline": {
     "cflag": "-mcpu=apple-m1",
-    "deployment_target": "13.5",
-    "deployment_provenance": "upstream nodejs/node v26.12.1 common.gypi MACOSX_DEPLOYMENT_TARGET"
+    "deployment_target": "26.0",
+    "deployment_provenance": "product policy macOS 26+ only, owner direction 2026-10-26 (upstream minimum 13.5)"
   },
   "host_requirements": {
     "system": "Darwin",

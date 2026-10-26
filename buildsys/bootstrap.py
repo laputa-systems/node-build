@@ -122,7 +122,7 @@ def check_locked_baseline(lock: dict) -> list[DoctorFinding]:
         ),
         DoctorFinding(
             "deployment-target",
-            baseline["deployment_target"] == "13.5",
+            baseline["deployment_target"] == "26.0",
             f"locked {baseline['deployment_target']}",
         ),
     ]
