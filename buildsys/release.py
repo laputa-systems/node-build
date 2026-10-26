@@ -98,7 +98,7 @@ def assemble(repo_root: Path, triple: str, tag: str, github_repo: str) -> dict:
     staging = repo_root / "build" / triple / "assembly-tmp"
     if staging.exists():
         shutil.rmtree(staging)
-    release_dir = staging / tag
+    release_dir = staging
     release_dir.mkdir(parents=True)
     release_archive = release_dir / release_name
     shutil.copyfile(archive, release_archive)
