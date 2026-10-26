@@ -1,19 +1,20 @@
 # node-build
 
 Independent build system for the locked Node.js 26.12.1 source. It produces a
-relocatable, PIE-hardened `aarch64-apple-darwin` installation: lean small-ICU
-default, working TLS/crypto, no npm/npx. Linux targets are deferred, never
-partially implemented.
+relocatable, PIE-hardened installations: `aarch64-apple-darwin` (lean small-ICU
+default, working TLS/crypto, no npm/npx) and `x86_64-unknown-linux-musl`
+(Alpine musl, same policy). Linux arm64 stays parked.
 
 ## Product targets
 
 | Triple | Platform/compiler | Baseline and deployment |
 | --- | --- | --- |
 | `aarch64-apple-darwin` | Native Apple Silicon macOS; Xcode Apple clang | `-mcpu=apple-m1`; deployment target 26.0 (macOS 26+ only) |
+| `x86_64-unknown-linux-musl` | Native Alpine x86_64; gcc + musl libc | `-march=x86-64-v2`; minimum musl 1.2.6 |
 
-`buildsys/targets.py` owns the supported set. Linux triples fail closed as
+`buildsys/targets.py` owns the supported set. Linux arm64 fails closed as
 deferred. `buildsys/product.py` is the single source of truth for archive and
-metadata naming. `buildsys/recipes.py` owns the configure recipe and rejects
+metadata naming. `buildsys/recipes.py` owns the per-target configure recipe and rejects
 banned flags (`-march=native`, `-ffast-math`, `--fully-static`,
 `--enable-thin-lto`).
 
@@ -42,8 +43,9 @@ checkouts, tag collisions, and unqualified archives.
 
 `sources.lock.json` pins source and reference inputs with URL, version,
 SHA-256, size, role, license, and purpose. Reference-only entries are never
-build inputs. `bootstrap.lock.json` pins the Xcode/SDK/clang identity, host
-requirements, CPU baseline, and deployment target. `buildsys/inputs.py`
+build inputs. `bootstrap.lock.json` pins the per-family toolchain identity
+(Xcode/SDK/clang on macOS; gcc/clang/musl on Linux), host requirements, CPU
+baseline, and deployment target. `buildsys/inputs.py`
 verifies downloaded bytes against the lock before use and rejects archives
 that escape the destination or contain links.
 

@@ -33,7 +33,7 @@ def published_smoke(repo_root: Path, triple: str, tag: str) -> dict:
     smoke_work.mkdir(parents=True, exist_ok=True)
     findings = smoke.run_suite(
         node, extracted, extracted / "include" / "node",
-        smoke_work, repo_root / "tests" / "fixtures",
+        smoke_work, repo_root / "tests" / "fixtures", triple,
     )
     record = {
         "release": tag,

@@ -1,14 +1,23 @@
 {
-  "comment": "Compressed/installed size ceilings. First ceilings measured from the qualified macos release 2026-10-26 with ~27% headroom for upstream patch variance. CI fails on exceed; a human reviews whether the growth is justified.",
   "budgets": {
     "aarch64-apple-darwin": {
       "compressed_max_bytes": 56000000,
       "installed_payload_max_bytes": 230000000,
+      "measured_artifact": "node-26.12.1-aarch64-apple-darwin-r1.tar.gz",
       "measured_compressed_bytes": 44023473,
       "measured_installed_payload_bytes": 179704746,
-      "measured_artifact": "node-26.12.1-aarch64-apple-darwin-r1.tar.gz",
       "measured_sha256": "cce5fe418b52550fbd232f0ff8f075d94263613b6b5d9695b93cd1d9d0e9fdde",
       "rationale": "First genuinely qualified release. Single 118 MB PIE binary plus headers and LICENSE dominate the payload; headroom covers minor upstream size drift without hiding a linking regression."
+    },
+    "x86_64-unknown-linux-musl": {
+      "compressed_max_bytes": 71000000,
+      "installed_payload_max_bytes": 243000000,
+      "measured_artifact": "node-26.12.1-x86_64-unknown-linux-musl-r1.tar.gz",
+      "measured_compressed_bytes": 55278558,
+      "measured_installed_payload_bytes": 190965048,
+      "measured_sha256": "4334c39af53281aed9a5e1b7b235a0df70d28698acce97d389f08707beb691ee",
+      "rationale": "First genuinely qualified Linux release. Single 130 MB musl PIE binary plus headers and LICENSE dominate the payload; headroom covers minor upstream size drift without hiding a linking regression."
     }
-  }
+  },
+  "comment": "Compressed/installed size ceilings. First ceilings measured from the qualified macos release 2026-10-26 with ~27% headroom for upstream patch variance. CI fails on exceed; a human reviews whether the growth is justified."
 }

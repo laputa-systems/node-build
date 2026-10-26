@@ -61,6 +61,22 @@ def prune_to_contract(install_root: Path) -> list[str]:
 def write_hardening_report(
     install_root: Path, machine: str, deployment_target: str, destination: Path
 ) -> dict:
+    if machine == "x86_64":
+        from buildsys import elf
+
+        images = elf.find_elifs(install_root)
+        record = {
+            "images": {
+                str(image.relative_to(install_root)): elf.inspect(image) for image in images
+            },
+            "deployment_target": deployment_target,
+            "checks": [
+                {"name": finding.name, "ok": finding.ok, "detail": finding.detail}
+                for finding in validate_product.elf_tree_checks(install_root, machine)
+            ],
+        }
+        inputs.render_json(record, destination)
+        return record
     images = macho.find_machos(install_root)
     record = {
         "images": {
@@ -97,7 +113,7 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     wanted = target_for_triple(triple)
     from buildsys import recipes
 
-    recipe = recipes.macos_recipe()
+    recipe = recipes.recipe_for_triple(triple)
     stage = stage_dir(repo_root, triple)
     install_root = install_to_stage(source, stage, recipe)
     shutil.copyfile(source / "LICENSE", install_root / "LICENSE")

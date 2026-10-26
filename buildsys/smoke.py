@@ -21,6 +21,11 @@ class SmokeFinding:
 
 CHECK_TIMEOUT = 60
 
+EXPECTED_IDENTITY = {
+    "aarch64-apple-darwin": "arm64/darwin",
+    "x86_64-unknown-linux-musl": "x64/linux",
+}
+
 
 def run_node(node: Path, args: list[str], cwd: Path, extra_env: dict | None = None) -> subprocess.CompletedProcess:
     import os
@@ -44,11 +49,12 @@ def check_version(node: Path, work: Path, fixtures: Path) -> str:
     return version
 
 
-def check_arch(node: Path, work: Path, fixtures: Path) -> str:
+def check_arch(node: Path, work: Path, fixtures: Path, triple: str = "aarch64-apple-darwin") -> str:
     completed = run_node(node, ["-p", "process.arch + '/' + process.platform"], work)
     identity = completed.stdout.strip()
-    if identity != "arm64/darwin":
-        raise SmokeError(f"identity {identity} != arm64/darwin")
+    expected = EXPECTED_IDENTITY[triple]
+    if identity != expected:
+        raise SmokeError(f"identity {identity} != {expected}")
     return identity
 
 
@@ -325,11 +331,23 @@ def check_inspector(node: Path, work: Path, fixtures: Path) -> str:
         process.kill()
 
 
-def check_napi_addon(node: Path, work: Path, fixtures: Path, headers: Path) -> str:
+def check_napi_addon(
+    node: Path, work: Path, fixtures: Path, headers: Path,
+    triple: str = "aarch64-apple-darwin",
+) -> str:
     addon = work / "addon.node"
+    if triple == "x86_64-unknown-linux-musl":
+        compile_command = [
+            "g++", "-shared", "-fPIC",
+            f"-I{headers}", str(fixtures / "smoke" / "addon.cc"), "-o", str(addon),
+        ]
+    else:
+        compile_command = [
+            "clang++", "-bundle", "-undefined", "dynamic_lookup",
+            f"-I{headers}", str(fixtures / "smoke" / "addon.cc"), "-o", str(addon),
+        ]
     compile_result = subprocess.run(
-        ["clang++", "-bundle", "-undefined", "dynamic_lookup",
-         f"-I{headers}", str(fixtures / "smoke" / "addon.cc"), "-o", str(addon)],
+        compile_command,
         capture_output=True, text=True, timeout=CHECK_TIMEOUT,
     )
     if compile_result.returncode != 0:
@@ -370,16 +388,22 @@ CHECKS = (
 )
 
 
-def run_suite(node: Path, install_root: Path, headers: Path, work: Path, fixtures: Path) -> list[SmokeFinding]:
+def run_suite(
+    node: Path, install_root: Path, headers: Path, work: Path, fixtures: Path,
+    triple: str = "aarch64-apple-darwin",
+) -> list[SmokeFinding]:
     findings: list[SmokeFinding] = []
     for name, check in CHECKS:
         try:
-            detail = check(node, work, fixtures)
+            if name == "arch":
+                detail = check(node, work, fixtures, triple)
+            else:
+                detail = check(node, work, fixtures)
             findings.append(SmokeFinding(name, True, detail))
         except (SmokeError, subprocess.TimeoutExpired, OSError) as error:
             findings.append(SmokeFinding(name, False, str(error)[:300]))
     try:
-        detail = check_napi_addon(node, work, fixtures, headers)
+        detail = check_napi_addon(node, work, fixtures, headers, triple)
         findings.append(SmokeFinding("napi-addon", True, detail))
     except (SmokeError, subprocess.TimeoutExpired, OSError) as error:
         findings.append(SmokeFinding("napi-addon", False, str(error)[:300]))

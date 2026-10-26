@@ -31,8 +31,20 @@ samples converge. No optimization is claimed and none gates the release:
 PIE-vs-non-PIE stays an experimental comparison only, and non-PIE is never
 published. Production PGO is deferred until it can be qualified.
 
+## Measured results (2026-10-26, x86_64 musl, host-shared timing)
+
+Reference is the system `node` v26.12.1 (musl-linked) on the same Alpine
+host; candidate is the freshly packaged `bin/node`, 5 alternating runs.
+
+| Probe | Reference (median of 5) | Candidate (median of 5) | Verdict |
+| --- | --- | --- | --- |
+| Cold startup | 15.3 ms (first sample 86.3 ms cold page cache) | 15.2 ms | no-measurable-difference |
+| JSON parse/stringify (60× 500-item docs) | 7 ms | 7 ms | no-measurable-difference |
+
 ## Size
 
-First qualified artifact: 44,023,851 bytes compressed, 179,704,746 bytes
-installed payload (dominated by the 118 MB binary). Ceilings live in
-`release-budgets.json` with ~27% headroom and are enforced in CI.
+macOS first qualified artifact: 44,023,851 bytes compressed, 179,704,746
+bytes installed payload (dominated by the 118 MB binary). Linux first
+qualified artifact: 55,278,558 bytes compressed, 190,965,048 bytes
+installed payload (dominated by the 129.8 MB binary). Ceilings live in
+`release-budgets.json` with ~28% headroom and are enforced in CI.

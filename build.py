@@ -37,6 +37,32 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         bootstrap.validate_bootstrap_lock(lock)
     except ValueError as error:
         return _fail(str(error))
+    if wanted.family == "linux":
+        from buildsys import recipes as recipe_mod
+
+        try:
+            identity = bootstrap.linux_current_identity()
+        except (RuntimeError, OSError) as error:
+            return _fail(f"toolchain inspection failed: {error}")
+        print(f"target: {wanted.triple}")
+        print(f"family: {wanted.family}")
+        print(f"cpu baseline: {wanted.cpu_baseline_cflag}")
+        print(f"deployment target: {wanted.deployment_target}")
+        print(f"gcc: {identity.gcc_version}")
+        print(f"clang: {identity.clang_version}")
+        print(f"musl: {identity.musl_version}")
+        print(f"kernel: {identity.kernel_release}")
+        print(f"host: {identity.host_machine} {identity.host_system}")
+        findings = bootstrap.check_linux_toolchain(lock, identity)
+        findings += bootstrap.check_linux_baseline(lock)
+        failed = [finding for finding in findings if not finding.ok]
+        for finding in findings:
+            print(f"[{'ok' if finding.ok else 'MISMATCH'}] {finding.name}: {finding.detail}")
+        if failed:
+            return _fail("toolchain does not match bootstrap.lock.json")
+        recipe_mod.validate_recipe(recipe_mod.linux_recipe())
+        print("[ok] recipe: required flags present, no banned flags")
+        return 0
     try:
         identity = bootstrap.current_identity()
     except (RuntimeError, OSError) as error:

@@ -158,6 +158,60 @@ def macho_tree_checks(
     return findings
 
 
+def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
+    from buildsys import elf
+
+    install = install.resolve()
+    required = (install / "bin" / "node",)
+    images = elf.find_elifs(install)
+    findings: list[ProductFinding] = [
+        ProductFinding("elf-image-count", bool(images), f"{len(images)} images"),
+    ]
+    missing = [str(image.relative_to(install)) for image in required if image not in images]
+    findings.append(
+        ProductFinding(
+            "elf-required-images", not missing, f"missing: {missing}" if missing else "bin/node present"
+        )
+    )
+    buckets: dict[str, list[str]] = {
+        "elf-arch": [], "elf-pie": [], "elf-interp": [], "elf-deps": [],
+        "elf-rpaths": [], "elf-relro": [], "elf-bind-now": [], "elf-stack-nx": [],
+    }
+    for image in images:
+        name = str(image.relative_to(install))
+        try:
+            header = elf.read_header(image)
+            deps = elf.dependencies(image)
+            rpaths = elf.rpaths(image)
+            interp = elf.interpreter(image)
+        except elf.ELFError as error:
+            buckets["elf-arch"].append(f"{name}: {error}")
+            continue
+        if header.arch != machine or not header.is_64:
+            buckets["elf-arch"].append(f"{name}: {header.arch}")
+        if not header.pie:
+            buckets["elf-pie"].append(f"{name}: {header.kind}")
+        if image in required or name == "bin/node":
+            if interp != elf.EXPECTED_INTERP_X86_64:
+                buckets["elf-interp"].append(f"{name}: {interp}")
+        for dependency in deps:
+            if not elf.allowed_dependency(dependency):
+                buckets["elf-deps"].append(f"{name} -> {dependency}")
+        if rpaths:
+            buckets["elf-rpaths"].append(f"{name}: {rpaths}")
+        if not elf.has_relro(image):
+            buckets["elf-relro"].append(name)
+        if not elf.has_bind_now(image):
+            buckets["elf-bind-now"].append(name)
+        if not elf.stack_nx(image):
+            buckets["elf-stack-nx"].append(name)
+    for bucket, entries in buckets.items():
+        findings.append(
+            ProductFinding(bucket, not entries, "; ".join(entries[:5]) if entries else "ok")
+        )
+    return findings
+
+
 def _is_fat(path: Path) -> bool:
     try:
         with path.open("rb") as handle:
@@ -179,7 +233,10 @@ def validate_install_tree(
     from buildsys import relocate
 
     findings = validate_layout(install_root)
-    findings += macho_tree_checks(install_root, machine, deployment_target)
+    if machine == "x86_64":
+        findings += elf_tree_checks(install_root, machine)
+    else:
+        findings += macho_tree_checks(install_root, machine, deployment_target)
     node = install_root / "bin" / "node"
     stage_hits = relocate.scan_forbidden_refs(node, stage_prefixes)
     findings.append(

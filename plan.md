@@ -1,9 +1,12 @@
-# node-build campaign — macOS arm64 only
+# node-build campaign — macOS arm64 complete, Linux x86_64 in progress
 
 ## Header
 
-- **Status:** COMPLETE 2026-10-26 — all deliverables met, see final report in campaign log.
-- **Resume:** n/a — campaign closed. To rebuild: `python3 build.py build && python3 build.py package && python3 build.py qualify`.
+- **Status:** macOS arm64 COMPLETE 2026-10-26 (see closeout entry below);
+  Linux `x86_64-unknown-linux-musl` IN PROGRESS on Alpine x86_64 host.
+- **Resume:** n/a for macOS — closed. For Linux: `python3 build.py build &&
+  python3 build.py package && python3 build.py qualify` with
+  `--target x86_64-unknown-linux-musl`, then budgets + compare + docs + report.
 - **Goal:** A functioning, tested `node-build` repository in the local tree that produces a
   lean, PIE-hardened, relocatable Node.js distribution for `aarch64-apple-darwin` from locked
   upstream Node v26.12.1 sources, with transactional release assembly and native qualification.
@@ -435,7 +438,40 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
 
 ## Decision log and campaign log
 
-- 2026-10-26 (closeout, final report): all deliverables met on `main`.
+- 2026-10-26 (linux reproduce + restore): two clean rebuilds linked
+  bit-for-bit identical 129,786,392-byte binaries (raw sha `3b411237…`
+  both attempts) — verdict `bit-for-bit reproducible`, stronger than the
+  macOS result. Rebuilt archive from the surviving tree re-passed package
+  (sha `4334c39a…`, 55,278,558 compressed / 190,965,048 payload — 88 bytes
+  of tar-mtime drift vs the first archive, binary bytes identical),
+  qualify 17/17, budgets, and compare (no-measurable-difference both
+  probes). Budgets doc now binds the current archive bytes. Full suite
+  73/73 green. Remaining: `assemble` / `published-smoke` (need a clean
+  checkout; tree holds the uncommitted linux port) and the closeout commit.
+  No pushes, no releases.
+- 2026-10-26 (linux build+qualify green, first pass): native Alpine build
+  exit 0 (`-march=x86-64-v2`, small-ICU, no-npm, no source patch — the
+  `common.gypi` floor patch is macOS-only). `package` produced
+  `dist/x86_64-unknown-linux-musl/node-26.12.1-x86_64-unknown-linux-musl-r1.tar.gz`
+  (sha `98a089ef…`, 55,278,470 compressed / 190,965,048 payload; 129.8 MB
+  `bin/node`). `qualify` green: 19 product checks (7 layout + 10 ELF gate +
+  2 path-leak, 1 inert OpenSSL config string as on macOS), 17/17 loopback
+  smoke, 4/4 relocation incl. spaces. Budgets set from these measures with
+  ~28% headroom (71.0 MB / 243.0 MB). `compare-reference` vs system
+  v26.12.1: no-measurable-difference on both probes (reproduce ran after;
+  see entry above for the restore). Not run: `assemble` /
+  `published-smoke` (need a clean checkout; working tree holds the
+  uncommitted linux port) — parked, retry after commit.
+- 2026-10-26 (linux scope opened): owner asked to finish the campaign for
+  linux amd64 on the Alpine x86_64 host. Re-entry per O1 parked items:
+  `x86_64-unknown-linux-musl` is now supported; linux arm64 stays parked.
+  Plan: controller (targets/bootstrap/recipes/doctor) → `buildsys/elf.py`
+  hardening validator + gate → native build → package + qualify against
+  final bytes → budgets + compare + docs + final report. macOS code paths
+  untouched in behavior (72 controller tests green incl. 16 ELF unit/gate
+  tests; `elf.py` proven against the live 146 MB musl host binary:
+  PIE, musl interp, 4 allowed deps, RELRO + BIND_NOW + NX).
+- 2026-10-26 (closeout, final report): macOS arm64 deliverables met on `main`.
   Commands: `doctor` (toolchain pinned: Xcode 27.1, SDK 27.0, clang 21.0.0),
   `fetch` (127166097-byte source verified), `build` (native `-mcpu=apple-m1`,
   small-ICU, no-npm, `common.gypi` floor patch 13.5→26.0), `package`

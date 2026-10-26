@@ -22,10 +22,11 @@ built-in SQLite.
 
 ## Runtime requirements
 
-macOS 26+ on arm64. The binary links only CoreFoundation, Security,
-libc++, and libSystem.
+macOS 26+ on arm64. The macOS binary links only CoreFoundation, Security,
+libc++, and libSystem. Alpine (musl 1.2.6+) on x86_64. The Linux binary is
+a musl PIE executable linking only musl, libstdc++, libgcc_s, and libatomic.
 
 ## Unsupported
 
-Intel macOS, any Windows or Linux target, macOS below 26, glibc, static
+Intel macOS, Linux arm64, macOS below 26, glibc, static
 `--fully-static` distributions, and any OpenSSL replacement backend.

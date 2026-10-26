@@ -7,6 +7,14 @@ from pathlib import Path
 from buildsys import inputs, macho
 
 
+def normalize_for_triple(binary: Path, triple: str) -> bytes:
+    if triple == "x86_64-unknown-linux-musl":
+        from buildsys import elf
+
+        return elf.normalized_bytes(binary)
+    return macho.normalized_bytes(binary)
+
+
 class ReproduceError(Exception):
     pass
 
@@ -42,7 +50,7 @@ def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
         wipe_tree(repo_root, triple)
         binary = node_driver.build(repo_root, triple, jobs)
         raw = binary.read_bytes()
-        normalized = macho.normalized_bytes(binary)
+        normalized = normalize_for_triple(binary, triple)
         kept = keep / f"attempt-{attempt}-node"
         kept.write_bytes(raw)
         retained.append(kept)
@@ -54,8 +62,8 @@ def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
                 "size": len(raw),
             }
         )
-    first_normalized = macho.normalized_bytes(retained[0])
-    second_normalized = macho.normalized_bytes(retained[1])
+    first_normalized = normalize_for_triple(retained[0], triple)
+    second_normalized = normalize_for_triple(retained[1], triple)
     chunks = differing_chunks(first_normalized, second_normalized)
     record = {
         "triple": triple,
@@ -70,10 +78,16 @@ def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
     if record["raw_match"]:
         record["verdict"] = "bit-for-bit reproducible"
     elif record["normalized_match"]:
-        record["verdict"] = (
-            "content identical outside Mach-O signing metadata "
-            "(UUID and ad-hoc signature regenerate per link)"
-        )
+        if triple == "x86_64-unknown-linux-musl":
+            record["verdict"] = (
+                "content identical outside ELF build-ID "
+                "(NT_GNU_BUILD_ID regenerates per link)"
+            )
+        else:
+            record["verdict"] = (
+                "content identical outside Mach-O signing metadata "
+                "(UUID and ad-hoc signature regenerate per link)"
+            )
     else:
         record["verdict"] = "content differs beyond signing metadata; not reproducible"
     inputs.render_json(record, repo_root / "build" / triple / "reproduce-record.json")

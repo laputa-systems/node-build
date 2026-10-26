@@ -32,6 +32,28 @@ def macos_recipe() -> dict:
     }
 
 
+def linux_recipe() -> dict:
+    return {
+        "configure": [
+            "--dest-os=linux",
+            "--dest-cpu=x64",
+            "--without-npm",
+            "--with-intl=small-icu",
+        ],
+        "cflags": ["-march=x86-64-v2"],
+        "optimization": "-O3",
+        "deployment_target": "1.2.6",
+    }
+
+
+def recipe_for_triple(triple: str) -> dict:
+    if triple == "aarch64-apple-darwin":
+        return macos_recipe()
+    if triple == "x86_64-unknown-linux-musl":
+        return linux_recipe()
+    raise BannedFlagError(f"no recipe for target: {triple}")
+
+
 def validate_recipe(recipe: dict) -> None:
     for key in ("configure", "cflags", "optimization", "deployment_target"):
         if key not in recipe:

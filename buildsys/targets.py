@@ -27,14 +27,23 @@ DARWIN_ARM64 = Target(
     executable_format="mach-o",
 )
 
+LINUX_X64_MUSL = Target(
+    triple="x86_64-unknown-linux-musl",
+    machine="x86_64",
+    family="linux",
+    cpu_baseline_cflag="-march=x86-64-v2",
+    deployment_target="1.2.6",
+    executable_format="elf",
+)
+
 TARGETS: dict[str, Target] = {
     DARWIN_ARM64.triple: DARWIN_ARM64,
+    LINUX_X64_MUSL.triple: LINUX_X64_MUSL,
 }
 
 SUPPORTED_TRIPLES = tuple(sorted(TARGETS))
 
 _LINUX_TRIPLES = (
-    "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
 )
 
@@ -46,7 +55,7 @@ def target_for_triple(triple: str) -> Target:
         if triple in _LINUX_TRIPLES:
             raise UnsupportedTargetError(
                 f"target deferred, not implemented in this campaign: {triple} "
-                "(linux targets are parked; see plan Non-goals)"
+                "(linux arm64 is parked; see plan Non-goals)"
             ) from None
         raise UnsupportedTargetError(
             f"target not implemented: {triple} (supported: {SUPPORTED_TRIPLES})"
@@ -55,14 +64,12 @@ def target_for_triple(triple: str) -> Target:
 
 def native_target() -> Target:
     machine = platform.machine()
-    if machine != "arm64":
-        raise UnsupportedTargetError(
-            f"this machine ({machine}) has no target description; "
-            f"supported: {SUPPORTED_TRIPLES}"
-        )
-    if platform.system() != "Darwin":
-        raise UnsupportedTargetError(
-            f"this machine ({machine} {platform.system()}) has no target description; "
-            f"supported: {SUPPORTED_TRIPLES}"
-        )
-    return DARWIN_ARM64
+    system = platform.system()
+    if system == "Darwin" and machine == "arm64":
+        return DARWIN_ARM64
+    if system == "Linux" and machine == "x86_64":
+        return LINUX_X64_MUSL
+    raise UnsupportedTargetError(
+        f"this machine ({machine} {system}) has no target description; "
+        f"supported: {SUPPORTED_TRIPLES}"
+    )

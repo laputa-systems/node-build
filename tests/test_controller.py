@@ -17,10 +17,15 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(wanted.family, "macos")
         self.assertEqual(wanted.cpu_baseline_cflag, "-mcpu=apple-m1")
 
-    def test_linux_targets_fail_closed_as_deferred(self):
-        for triple in ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"):
-            with self.assertRaises(targets.UnsupportedTargetError):
-                targets.target_for_triple(triple)
+    def test_linux_x64_musl_supported(self):
+        wanted = targets.target_for_triple("x86_64-unknown-linux-musl")
+        self.assertEqual(wanted.machine, "x86_64")
+        self.assertEqual(wanted.family, "linux")
+        self.assertEqual(wanted.cpu_baseline_cflag, "-march=x86-64-v2")
+
+    def test_linux_arm64_still_deferred(self):
+        with self.assertRaises(targets.UnsupportedTargetError):
+            targets.target_for_triple("aarch64-unknown-linux-musl")
 
     def test_unknown_triple_rejected(self):
         with self.assertRaises(targets.UnsupportedTargetError):
@@ -45,6 +50,20 @@ class ProductTest(unittest.TestCase):
         self.assertIn("artifact-aarch64-apple-darwin.json", assets)
         self.assertIn("assembly.json", assets)
         self.assertIn("SHA256SUMS", assets)
+
+    def test_linux_archive_and_assets(self):
+        self.assertEqual(
+            product.local_archive_name("26.12.1", "x86_64-unknown-linux-musl", 1),
+            "node-26.12.1-x86_64-unknown-linux-musl-r1.tar.gz",
+        )
+        assets = product.expected_release_assets(
+            "26.12.1", "20261025", ("x86_64-unknown-linux-musl",)
+        )
+        self.assertIn(
+            "node-26.12.1+20261025-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+            assets,
+        )
+        self.assertIn("artifact-x86_64-unknown-linux-musl.json", assets)
 
     def test_single_naming_source(self):
         first = product.release_archive_name("26.12.1", "20261025", "aarch64-apple-darwin")
@@ -111,6 +130,20 @@ class RecipesTest(unittest.TestCase):
     def test_macos_recipe_valid(self):
         recipes.validate_recipe(recipes.macos_recipe())
 
+    def test_linux_recipe_valid(self):
+        recipe = recipes.linux_recipe()
+        recipes.validate_recipe(recipe)
+        self.assertIn("--dest-os=linux", recipe["configure"])
+        self.assertIn("--dest-cpu=x64", recipe["configure"])
+
+    def test_recipe_for_triple_dispatch(self):
+        self.assertEqual(
+            recipes.recipe_for_triple("aarch64-apple-darwin")["deployment_target"], "26.0"
+        )
+        self.assertEqual(
+            recipes.recipe_for_triple("x86_64-unknown-linux-musl")["deployment_target"], "1.2.6"
+        )
+
     def test_banned_flags_rejected(self):
         for banned in ("-march=native", "-ffast-math", "--fully-static", "--enable-thin-lto"):
             bad = recipes.macos_recipe()
@@ -173,8 +206,22 @@ class PatchTest(unittest.TestCase):
 
 class BootstrapTest(unittest.TestCase):
     def test_lock_matches_host(self):
+        import platform
+
         lock = inputs.load_json(REPO_ROOT / "bootstrap.lock.json")
         bootstrap.validate_bootstrap_lock(lock)
+        if platform.system() == "Linux":
+            identity = bootstrap.linux_current_identity()
+            mismatches = [
+                finding for finding in bootstrap.check_linux_toolchain(lock, identity)
+                if not finding.ok
+            ]
+            self.assertEqual(mismatches, [])
+            baseline_bad = [
+                finding for finding in bootstrap.check_linux_baseline(lock) if not finding.ok
+            ]
+            self.assertEqual(baseline_bad, [])
+            return
         identity = bootstrap.current_identity()
         mismatches = [
             finding for finding in bootstrap.check_locked_toolchain(lock, identity)

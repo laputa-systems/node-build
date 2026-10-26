@@ -46,6 +46,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
         extracted / "include" / "node",
         smoke_work,
         repo_root / "tests" / "fixtures",
+        triple,
     )
     reloc_findings = relocate.verify_relocation(
         extracted,

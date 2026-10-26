@@ -25,7 +25,8 @@ def configure_env(recipe: dict) -> dict[str, str]:
     import os
 
     env = dict(os.environ)
-    env["MACOSX_DEPLOYMENT_TARGET"] = recipe["deployment_target"]
+    if "--dest-os=mac" in recipe["configure"]:
+        env["MACOSX_DEPLOYMENT_TARGET"] = recipe["deployment_target"]
     env["CFLAGS"] = " ".join(recipe["cflags"])
     env["CXXFLAGS"] = " ".join(recipe["cflags"])
     return env
@@ -57,7 +58,7 @@ def apply_product_patches(source: Path) -> list[str]:
     return applied
 
 
-def ensure_extracted(repo_root: Path) -> Path:
+def ensure_extracted(repo_root: Path, triple: str) -> Path:
     lock = inputs.load_lock(repo_root / "sources.lock.json")
     entry = inputs.lock_entry(lock, "node")
     archive = repo_root / "build" / "cache" / f"node-{entry['version']}.tar.gz"
@@ -70,7 +71,8 @@ def ensure_extracted(repo_root: Path) -> Path:
         inputs.safe_extract(archive, repo_root / "build" / "src")
     if not marker.exists():
         raise BuildError(f"extracted source has no configure script: {target}")
-    apply_product_patches(target)
+    if triple == "aarch64-apple-darwin":
+        apply_product_patches(target)
     return target
 
 
@@ -136,20 +138,34 @@ def built_node(source: Path) -> Path:
 
 
 def write_receipt(repo_root: Path, triple: str, recipe: dict, extra: dict) -> Path:
+    from buildsys.targets import target_for_triple
+
+    wanted = target_for_triple(triple)
     source_lock = inputs.load_lock(repo_root / "sources.lock.json")
     toolchain_lock = inputs.load_json(repo_root / "bootstrap.lock.json")
+    if wanted.family == "linux":
+        toolchain_section = toolchain_lock["linux_toolchain"]
+        baseline_section = toolchain_lock["linux_baseline"]
+        effective_env = {
+            "CFLAGS": " ".join(recipe["cflags"]),
+            "CXXFLAGS": " ".join(recipe["cflags"]),
+        }
+    else:
+        toolchain_section = toolchain_lock["toolchain"]
+        baseline_section = toolchain_lock["cpu_baseline"]
+        effective_env = {
+            "MACOSX_DEPLOYMENT_TARGET": recipe["deployment_target"],
+            "CFLAGS": " ".join(recipe["cflags"]),
+            "CXXFLAGS": " ".join(recipe["cflags"]),
+        }
     receipt = {
         "node_version": NODE_VERSION,
         "target": triple,
         "source": inputs.lock_entry(source_lock, "node"),
-        "toolchain": toolchain_lock["toolchain"],
-        "cpu_baseline": toolchain_lock["cpu_baseline"],
+        "toolchain": toolchain_section,
+        "cpu_baseline": baseline_section,
         "recipe": recipe,
-        "effective_env": {
-            "MACOSX_DEPLOYMENT_TARGET": recipe["deployment_target"],
-            "CFLAGS": " ".join(recipe["cflags"]),
-            "CXXFLAGS": " ".join(recipe["cflags"]),
-        },
+        "effective_env": effective_env,
         "builder_python": ".".join(str(part) for part in sys.version_info[:3]),
     }
     receipt.update(extra)
@@ -163,12 +179,12 @@ def build(repo_root: Path, triple: str, jobs: int) -> Path:
     from buildsys.targets import target_for_triple
 
     target_for_triple(triple)
-    recipe = recipes.macos_recipe()
-    source = ensure_extracted(repo_root)
+    recipe = recipes.recipe_for_triple(triple)
+    source = ensure_extracted(repo_root, triple)
     if needs_configure(source, repo_root, triple, recipe):
         run_configure(source, repo_root, triple, recipe)
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
-    applied = apply_product_patches(source)
+    applied = apply_product_patches(source) if triple == "aarch64-apple-darwin" else []
     write_receipt(repo_root, triple, recipe, {"built_node": str(binary), "patches": applied})
     return binary
