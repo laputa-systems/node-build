@@ -2,7 +2,8 @@
 
 ## Header
 
-- **Status:** READY FOR EXECUTION (macOS arm64 scope; Linux deferred by owner, 2026-10-26).
+- **Status:** paused 2026-10-26 — winddown complete, see Handoff below.
+- **Resume:** re-read this doc and run the restore chain in the Handoff, then final closeout.
 - **Goal:** A functioning, tested `node-build` repository in the local tree that produces a
   lean, PIE-hardened, relocatable Node.js distribution for `aarch64-apple-darwin` from locked
   upstream Node v26.12.1 sources, with transactional release assembly and native qualification.
@@ -27,12 +28,58 @@
     with measured numbers logged (not gating).
   - D8. Docs: `README.md`, `AGENTS.md`, `docs/SECURITY.md`, `docs/REPRODUCE.md`,
     `docs/COMPATIBILITY.md`, `docs/PERFORMANCE.md` — concise, no duplicated or unproven claims.
-- **Last accepted checkpoint:** NB-3 (`dist/aarch64-apple-darwin/node-26.12.1-aarch64-apple-darwin-r1.tar.gz`, sha `29dba992…`, 17/17 smoke).
-- **Provisional work:** none.
-- **Current steering decision:** proceed linearly NB-1 → NB-5, width 1 (max 2 for disjoint
-  slices), provisional-work cap 2. Next substantive milestone: NB-2 (real PIE `node` binary).
-- **Next steering checkpoint:** after NB-1 validation wave, then after each item; if no wave
-  completes, after five attempted items (failed + parked count).
+- **Last accepted checkpoint:** NB-3 (`dist/aarch64-apple-darwin/node-26.12.1-aarch64-apple-darwin-r1.tar.gz`, sha `29dba992…`, 17/17 smoke; archive bytes intact, build tree mid-restore — see Handoff).
+- **Provisional work:** none (restore chain parked, fully retryable).
+- **Current steering decision:** winddown — no new items; land the restore chain, then final closeout commit.
+- **Next steering checkpoint:** on resume, before running the restore chain.
+
+## Handoff (paused 2026-10-26)
+
+- **Resume:** "Resume the node-build campaign in /Users/josh/d/node-build: run the restore
+  chain below, then final closeout (review diff, write final report in the campaign log,
+  commit)." First command (single chain, ~40 min unattended, resumable):
+  `python3 build.py build --target aarch64-apple-darwin && python3 build.py package --target aarch64-apple-darwin && python3 build.py qualify --target aarch64-apple-darwin && python3 build.py check-budgets --target aarch64-apple-darwin`
+  Before dispatch, re-read current instructions and perform the parent steering
+  checkpoint; do not rebaseline unchanged inputs.
+- **State:** branch `main`, all work committed. Last accepted: NB-3 qualified archive
+  `dist/aarch64-apple-darwin/node-26.12.1-aarch64-apple-darwin-r1.tar.gz`
+  (sha `29dba992…`, 17/17 smoke) — archive bytes intact on disk. No provisional commits
+  awaiting proof; every commit's acceptance is recorded in the campaign log. Known red:
+  none in code (53/53 controller tests green); the on-disk build tree is mid-restore
+  (see parked item).
+- **Direction:** NB-1…NB-5 code complete (controller, native 26.0 build, borrowed
+  hardening gate + 17-check loopback smoke, dated-prerelease assembly + published-byte
+  smoke, compare harness, docs). Limiting stage throughout was full-clean-build wall
+  clock (~35 min, V8-dominated); accelerate ruling killed the redundant 70-min reproduce
+  rerun — P6 stands satisfied by run 1's honest "not reproducible" verdict (hashes in
+  the 2026-10-26 accelerate log entry). Current ruling: no re-measurement, no new
+  items; land the restore, then close. Next delivery: restored build tree +
+  re-qualification + final report commit. Owner requirements unchanged: macOS arm64
+  only (O1), borrowed python-build hardening @ `5227de3` (O2), macOS 26+ floor (O3);
+  no pushes, no releases, no `../python-build` edits (its floor change is owner's).
+- **Open lanes:** none — width was 1, no lanes or worktrees ever created. One parked
+  item: *restore chain* (re-extract + full build + package + qualify + budgets; the
+  winddown kill interrupted the in-flight restore mid-compile and the tree is left in
+  a make-resumable state). Retry condition: none needed beyond rerunning the chain —
+  it is idempotent (verified fetch, fingerprinted configure, transactional package).
+  No defect is parked; the kill was procedural, and the interrupted `make` failure in
+  `.work/tmp/restore.log` is its expected footprint, not a product red.
+- **Cleanup:** zero worktrees created or removed (`git worktree list` shows only the
+  main checkout). Preserved under gitignored paths: `build/cache/node-26.12.1.tar.gz`
+  (verified 127 MB source), `dist/aarch64-apple-darwin/` (accepted archive),
+  `.work/tmp/` logs (build, package, qualify, reproduce run-1 verdict evidence).
+  `build/src` + `build/aarch64-apple-darwin` hold a partial compile tree from the
+  killed restore — kept deliberately, `make` resumes incrementally. No campaign state
+  in `/tmp`, no processes remain, no cron/wakeup exists.
+- **Not started:** nothing in NB-1…NB-5 remains unbuilt. After the restore chain:
+  final review pass over `git log` + full `controller-test`, final report, closeout
+  commit. Owner owes no decisions (Linux re-enable and python-build floor change are
+  recorded future work, not blockers).
+- **Verified:** reboot audit 2026-10-26 — worktree list clean (main only); `rg` finds
+  no `/tmp|/var/folders|/private/tmp|$TMPDIR` paths in the doc (only the never-`/tmp`
+  charter rule); `git branch` shows main only; no campaign processes remain; this doc
+  leaves nothing the campaign needs untracked (build outputs stay gitignored by
+  design, reproducible from locks).
 
 ## Charter (the executor runs by this)
 
@@ -95,6 +142,18 @@
   non-PIE executables). Omitted with reason: install-name edit helpers (node ships no
   private dylibs) and reproduce-normalization helpers (no consumer yet). Node keeps its
   own supported crypto backend; no TLS replacement work.
+- 2026-10-26 (accelerate ruling): bottleneck is full-clean-build wall clock (~35 min,
+  V8-dominated); width 1 is correct, compilation already uses -j10. Killed the 70-min
+  reproduce rerun: run 1 already satisfied P6 with an honest verdict (raw
+  `d22e8091…` vs `69f7f68d…`, normalized `c1f704…` vs `3a04c7…`, both 118526136 bytes:
+  not reproducible even outside signing metadata; embedded-date theory refuted —
+  only vendored 2026-10-09 strings found). Chunk-localization machinery stays in the
+  tree with unit tests; diagnosing the mechanism is parked until a future reproduce
+  run, no extra authority needed. The rerun's wipe removed the build tree, so one
+  restore build + package + qualify is running to leave the repo fully proven.
+  Size evidence: official darwin-arm64 is 147 MB binary / 58.3 MB tarball vs ours
+  118 MB / 44.0 MB — ours is leaner (small-ICU, no npm); neither binary carries
+  `__DWARF`, so no strip step is owed and the `install_only_stripped` naming holds.
 - O3. **macOS 26+ only.** Owner direction 2026-10-26: the product floor is macOS 26.0
   (host runs macOS 27). Same policy applies to python-build (outside this campaign's
   boundary — owner applies it there). Upstream Node 26 supports 13.5+, but this product
@@ -376,6 +435,9 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
 
 ## Decision log and campaign log
 
+- 2026-10-26 (winddown): parked the in-flight restore chain (kill was procedural;
+  retry is the idempotent restore chain in the Handoff). All NB-1…NB-5 work merged on
+  `main`; no lanes, no worktrees, no processes. Status paused; resume via Handoff.
 - 2026-10-26 (preflight): owner scope recorded (O1 macOS-only; O2 python-build flux) —
   Linux sections of the draft mapped to Non-goals + parked obligation, macOS specifics kept
   actionable in NB-1…NB-5/A1…A8. Prescribed P1–P11 from code/evidence; delegated G1–G5 with
@@ -384,8 +446,9 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
   (max 2), cap 2, attempt limit 3, waves per item + full suite at NB-3/NB-4/NB-5 close.
   Benchmarks moved to NB-5 (measured, not gating); validator negative tests kept in NB-3
   (they are parity/hardening, not optimization).
-- Campaign log: no runs yet. Executor appends accepted waves, parked items with
-  prerequisite + retry condition, and steering rulings here (short; header stays current).
+- 2026-10-26 (winddown): parked the in-flight restore chain (kill was procedural;
+  retry is the idempotent restore chain in the Handoff). All NB-1…NB-5 work merged on
+  `main`; no lanes, no worktrees, no processes. Status paused; resume via Handoff.
 - 2026-10-26 (steering after NB-2): NB-2 accepted — native `make -j10` exit 0, staged
   `out/Release/node` is arm64 EXECUTE + PIE, codesign valid, `v26.12.1`, small-ICU `Intl`
   correct, snapshot enabled, N-API fixture answer 42, link closure is system-only.
