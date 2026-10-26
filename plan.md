@@ -27,8 +27,7 @@
     with measured numbers logged (not gating).
   - D8. Docs: `README.md`, `AGENTS.md`, `docs/SECURITY.md`, `docs/REPRODUCE.md`,
     `docs/COMPATIBILITY.md`, `docs/PERFORMANCE.md` — concise, no duplicated or unproven claims.
-- **Last accepted checkpoint:** none (repo has no commits; `main` is unborn; only `plan.md`
-  untracked).
+- **Last accepted checkpoint:** `0aa95a7` (NB-1: controller, locks, doctor/fetch).
 - **Provisional work:** none.
 - **Current steering decision:** proceed linearly NB-1 → NB-5, width 1 (max 2 for disjoint
   slices), provisional-work cap 2. Next substantive milestone: NB-2 (real PIE `node` binary).
@@ -377,6 +376,12 @@ isolate and bisect on failure; never claim intermediate commits were globally ch
   (they are parity/hardening, not optimization).
 - Campaign log: no runs yet. Executor appends accepted waves, parked items with
   prerequisite + retry condition, and steering rulings here (short; header stays current).
+- 2026-10-26 (steering after NB-1): NB-1 accepted — 16 controller tests green, doctor
+  matches locked toolchain, fetch verified 127166097-byte source, linux/unknown targets
+  fail closed with exit 2, unimplemented commands fail closed naming their milestone.
+  Upstream default ICU is full-icu (verified in configure.py), so the recipe passes
+  --with-intl=small-icu explicitly. Ruling: proceed to NB-2 unchanged; start the native
+  build in background and write NB-3 validator modules while it compiles.
 
 ## For the owner afterwards
 

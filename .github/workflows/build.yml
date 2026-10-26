@@ -1,0 +1,95 @@
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (defaults to current UTC date YYYYMMDD)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: macos-14
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - id: release
+        run: python3 .github/scripts/resolve_release.py "${{ inputs.release_tag }}"
+
+  controller:
+    needs: resolve
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: python3 build.py controller-test
+
+  build-qualify:
+    needs: [resolve, controller]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: python3 build.py doctor --target aarch64-apple-darwin
+      - run: python3 build.py fetch --target aarch64-apple-darwin
+      - run: python3 build.py build --target aarch64-apple-darwin
+      - run: python3 build.py package --target aarch64-apple-darwin
+      - run: python3 build.py qualify --target aarch64-apple-darwin
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dist-aarch64-apple-darwin
+          path: dist/
+          if-no-files-found: error
+
+  assemble:
+    needs: [resolve, build-qualify]
+    runs-on: macos-14
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: dist-aarch64-apple-darwin
+          path: dist/
+      - run: python3 build.py assemble --target aarch64-apple-darwin --tag "${{ needs.resolve.outputs.release_tag }}" --repo "${{ github.repository }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-${{ needs.resolve.outputs.release_tag }}
+          path: dist/${{ needs.resolve.outputs.release_tag }}/
+          if-no-files-found: error
+
+  smoke:
+    needs: [resolve, assemble]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-${{ needs.resolve.outputs.release_tag }}
+          path: dist/${{ needs.resolve.outputs.release_tag }}/
+      - run: python3 build.py published-smoke --target aarch64-apple-darwin --tag "${{ needs.resolve.outputs.release_tag }}"
+
+  publish:
+    needs: [resolve, assemble, smoke]
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-${{ needs.resolve.outputs.release_tag }}
+          path: dist/${{ needs.resolve.outputs.release_tag }}/
+      - run: >-
+          gh release create "${{ needs.resolve.outputs.release_tag }}"
+          --target "$GITHUB_SHA" --prerelease
+          --title "node-26.12.1+${{ needs.resolve.outputs.release_tag }}"
+          dist/${{ needs.resolve.outputs.release_tag }}/*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

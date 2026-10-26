@@ -6,7 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from buildsys import bootstrap, inputs, recipes
+from buildsys import bootstrap, inputs, node, package, qualify_runner, recipes
+from buildsys import published_smoke as published_smoke_runner
+from buildsys import release as release_assembler
 from buildsys.targets import (
     SUPPORTED_TRIPLES,
     UnsupportedTargetError,
@@ -20,11 +22,7 @@ SOURCES_LOCK = REPO_ROOT / "sources.lock.json"
 BOOTSTRAP_LOCK = REPO_ROOT / "bootstrap.lock.json"
 
 MILESTONE_PENDING = {
-    "build": "NB-2",
-    "qualify": "NB-3",
-    "package": "NB-3",
     "reproduce": "NB-4",
-    "compare-reference": "NB-5",
 }
 
 
@@ -109,12 +107,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="build.py")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("doctor", "fetch", "build", "qualify", "package", "reproduce",
-                 "compare-reference", "controller-test"):
+                 "compare-reference", "controller-test", "assemble", "published-smoke"):
         child = sub.add_parser(name)
         if name not in ("controller-test", "doctor"):
             child.add_argument("--target", default=None)
         if name == "doctor":
             child.add_argument("--target", default=None)
+        if name == "build":
+            child.add_argument("--jobs", type=int, default=10)
+        if name in ("assemble", "published-smoke"):
+            child.add_argument("--tag", required=True)
+        if name == "assemble":
+            child.add_argument("--repo", required=True)
+        if name == "compare-reference":
+            child.add_argument("--reference", default=None)
     return parser
 
 
@@ -153,6 +159,68 @@ def main(argv: list[str] | None = None) -> int:
         if args.target is None:
             args.target = resolve_target(None)
         return cmd_pending(args)
+    if args.command == "build":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            binary = node.build(REPO_ROOT, args.target, args.jobs)
+        except (node.BuildError, Exception) as error:
+            return _fail(str(error))
+        print(f"built: {binary}")
+        return 0
+    if args.command == "package":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            from buildsys import node as node_driver
+
+            result = package.package(REPO_ROOT, args.target, node_driver.source_dir(REPO_ROOT))
+        except (package.PackageError, Exception) as error:
+            return _fail(str(error))
+        print(f"archive: {result['archive']}")
+        print(f"sha256: {result['sha256']}")
+        return 0
+    if args.command == "qualify":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            record = qualify_runner.qualify(REPO_ROOT, args.target)
+        except (qualify_runner.QualifyError, Exception) as error:
+            return _fail(str(error))
+        print(f"qualified: {record['archive']}")
+        print(f"smoke: {record['smoke_passed']}/{record['smoke_total']} passed")
+        return 0
+    if args.command == "assemble":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            result = release_assembler.assemble(REPO_ROOT, args.target, args.tag, args.repo)
+        except (release_assembler.AssemblyError, Exception) as error:
+            return _fail(str(error))
+        print(f"release: {result['release_title']} -> {result['release_dir']}")
+        print(f"assets: {', '.join(result['assets'])}")
+        return 0
+    if args.command == "published-smoke":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            record = published_smoke_runner.published_smoke(REPO_ROOT, args.target, args.tag)
+        except (published_smoke_runner.PublishedSmokeError, Exception) as error:
+            return _fail(str(error))
+        print(f"published smoke: {record['passed']}/{record['total']} passed")
+        return 0
+    if args.command == "compare-reference":
+        if args.target is None:
+            args.target = resolve_target(None)
+        try:
+            from buildsys import comparison
+
+            record = comparison.compare(REPO_ROOT, args.target, args.reference)
+        except (comparison.CompareError, Exception) as error:
+            return _fail(str(error))
+        for name, probe in record["probes"].items():
+            print(f"{name}: {probe['verdict']}")
+        return 0
     return _fail(f"unknown command: {args.command}")
 
 
