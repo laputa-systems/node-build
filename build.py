@@ -202,13 +202,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"smoke: {record['smoke_passed']}/{record['smoke_total']} passed")
         return 0
     if args.command == "assemble":
+        from buildsys.targets import SUPPORTED_TRIPLES
+
         if args.target is None:
-            args.target = resolve_target(None)
+            triples = tuple(sorted(SUPPORTED_TRIPLES))
+        else:
+            triples = tuple(part.strip() for part in args.target.split(",") if part.strip())
+            if not triples:
+                return _fail("no --target given")
         try:
-            result = release_assembler.assemble(REPO_ROOT, args.target, args.tag, args.repo)
+            result = release_assembler.assemble_all(REPO_ROOT, triples, args.tag, args.repo)
         except (release_assembler.AssemblyError, Exception) as error:
             return _fail(str(error))
         print(f"release: {result['release_title']} -> {result['release_dir']}")
+        print(f"targets: {', '.join(result['targets'])}")
         print(f"assets: {', '.join(result['assets'])}")
         return 0
     if args.command == "published-smoke":
