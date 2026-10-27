@@ -22,9 +22,10 @@ built-in SQLite.
 
 ## Runtime requirements
 
-macOS 26+ on arm64. The macOS binary links only CoreFoundation, Security,
-libc++, and libSystem. Alpine (musl 1.2.6+) on x86_64. The Linux binary is
-a musl PIE executable linking only musl, libstdc++, libgcc_s, and libatomic.
+macOS 26+ on arm64; Alpine (musl 1.2.6+) on x86_64. The macOS binary links
+only system libraries (`/usr/lib/`, `/System/Library/`); the Linux binary
+links only the musl loader and the allowlisted libraries
+(`ALLOWED_NEEDED` in `buildsys/elf.py`). Both gates reject anything else.
 
 ## Unsupported
 

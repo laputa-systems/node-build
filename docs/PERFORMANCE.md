@@ -1,13 +1,9 @@
 # Performance methodology
 
-## Baseline rule
-
 Compare against the trustworthy contemporary reference on the same native
 machine: the official `node-v26.12.1-darwin-arm64` binary, same Node
 version, workload, environment, and warmup. Control CPU baseline and
 report the machine. On a busy host, interleave sides (A/B/A/B) and say so.
-
-## Running it
 
 ```sh
 python3 build.py compare-reference --target aarch64-apple-darwin [--reference /path/to/node]
