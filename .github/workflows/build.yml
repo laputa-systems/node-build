@@ -11,90 +11,291 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: "26.12.1"
+  ALPINE_AMD64: alpine@sha256:266f29255458134745f2bf588cb23ed1ed1768b96ff2580a05d70a8aba59e145
+
 jobs:
-  resolve:
-    runs-on: macos-14
+  prepare:
+    runs-on: ubuntu-24.04
     outputs:
-      release_tag: ${{ steps.release.outputs.release_tag }}
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - id: release
-        run: python3 .github/scripts/resolve_release.py "${{ inputs.release_tag }}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-  controller:
-    needs: resolve
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - run: python3 build.py controller-test
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.15.1"
 
-  build-qualify:
-    needs: [resolve, controller]
-    runs-on: macos-14
+      - name: Resolve and validate release tag
+        id: resolve
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: python3.15 .github/scripts/resolve_release.py
+
+      - name: Run fast controller tests
+        run: python3.15 -m unittest discover -s tests
+
+  build-macos:
+    runs-on: xcode-27
+    needs: [prepare]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - run: python3 build.py doctor --target aarch64-apple-darwin
-      - run: python3 build.py fetch --target aarch64-apple-darwin
-      - run: python3 build.py build --target aarch64-apple-darwin
-      - run: python3 build.py package --target aarch64-apple-darwin
-      - run: python3 build.py qualify --target aarch64-apple-darwin
-      - run: python3 build.py check-budgets --target aarch64-apple-darwin
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.15.1"
+
+      - name: Exclude task-local scratch
+        run: |
+          set -eu
+          exclude="$(git rev-parse --git-path info/exclude)"
+          if ! rg --quiet --fixed-strings --line-regexp ".work/" "$exclude"; then
+            printf '\n.work/\n' >> "$exclude"
+          fi
+          mkdir -p .work/tmp
+
+      - name: Cache verified build inputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: build/cache
+          key: macos-inputs-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json') }}
+          restore-keys: macos-inputs-
+
+      - name: Doctor, fetch, build, package, qualify
+        env:
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          python3.15 build.py doctor --target aarch64-apple-darwin
+          python3.15 build.py fetch --target aarch64-apple-darwin
+          python3.15 build.py build --target aarch64-apple-darwin
+          python3.15 build.py package --target aarch64-apple-darwin
+          python3.15 build.py qualify --target aarch64-apple-darwin
+          python3.15 build.py check-budgets --target aarch64-apple-darwin
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dist-aarch64-apple-darwin
           path: |
-            dist/
+            dist/aarch64-apple-darwin
             build/aarch64-apple-darwin/build-receipt.json
             build/aarch64-apple-darwin/package-record.json
             build/aarch64-apple-darwin/qualify/qualify-record.json
           if-no-files-found: error
 
-  assemble:
-    needs: [resolve, build-qualify]
-    runs-on: macos-14
-    permissions:
-      contents: read
+      - name: Preserve failed qualification evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: failed-aarch64-apple-darwin-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/aarch64-apple-darwin/make.log
+            build/aarch64-apple-darwin/stage/install.log
+            build/aarch64-apple-darwin/package-record.json
+            build/aarch64-apple-darwin/qualify/
+          if-no-files-found: warn
+
+  build-linux:
+    runs-on: ubuntu-24.04
+    needs: [prepare]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          name: dist-aarch64-apple-darwin
-          path: dist/
-      - run: python3 build.py assemble --target aarch64-apple-darwin --tag "${{ needs.resolve.outputs.release_tag }}" --repo "${{ github.repository }}"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          persist-credentials: false
+
+      - name: Exclude task-local scratch
+        run: |
+          set -eu
+          exclude="$(git rev-parse --git-path info/exclude)"
+          if ! rg --quiet --fixed-strings --line-regexp ".work/" "$exclude"; then
+            printf '\n.work/\n' >> "$exclude"
+          fi
+          mkdir -p .work/tmp
+
+      - name: Cache verified build inputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          name: release-${{ needs.resolve.outputs.release_tag }}
-          path: dist/${{ needs.resolve.outputs.release_tag }}/
+          path: build/cache
+          key: linux-inputs-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json') }}
+          restore-keys: linux-inputs-
+
+      - name: Doctor, fetch, build, package, qualify in Alpine musl
+        env:
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          docker run --platform linux/amd64 --rm \
+            --volume "$PWD:/work" \
+            --workdir /work \
+            --env TMPDIR=/work/.work/tmp \
+            "${{ env.ALPINE_AMD64 }}" sh -ec '
+              apk add --no-cache python3 build-base clang linux-headers perl pkgconf
+              python3 build.py doctor --target x86_64-unknown-linux-musl
+              python3 build.py fetch --target x86_64-unknown-linux-musl
+              python3 build.py build --target x86_64-unknown-linux-musl
+              python3 build.py package --target x86_64-unknown-linux-musl
+              python3 build.py qualify --target x86_64-unknown-linux-musl
+              python3 build.py check-budgets --target x86_64-unknown-linux-musl
+            '
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dist-x86_64-unknown-linux-musl
+          path: |
+            dist/x86_64-unknown-linux-musl
+            build/x86_64-unknown-linux-musl/build-receipt.json
+            build/x86_64-unknown-linux-musl/package-record.json
+            build/x86_64-unknown-linux-musl/qualify/qualify-record.json
           if-no-files-found: error
 
-  smoke:
-    needs: [resolve, assemble]
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - name: Preserve failed qualification evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: release-${{ needs.resolve.outputs.release_tag }}
-          path: dist/${{ needs.resolve.outputs.release_tag }}/
-      - run: python3 build.py published-smoke --target aarch64-apple-darwin --tag "${{ needs.resolve.outputs.release_tag }}"
+          name: failed-x86_64-unknown-linux-musl-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/x86_64-unknown-linux-musl/make.log
+            build/x86_64-unknown-linux-musl/stage/install.log
+            build/x86_64-unknown-linux-musl/package-record.json
+            build/x86_64-unknown-linux-musl/qualify/
+          if-no-files-found: warn
+
+  assemble:
+    runs-on: ubuntu-24.04
+    needs: [prepare, build-macos, build-linux]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: dist-aarch64-apple-darwin
+          path: .
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: dist-x86_64-unknown-linux-musl
+          path: .
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.15.1"
+
+      - name: Assemble and validate release assets
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: python3.15 build.py assemble --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}
+          path: dist/${{ needs.prepare.outputs.tag }}/
+          if-no-files-found: error
+
+  smoke-macos:
+    runs-on: xcode-27
+    needs: [prepare, assemble]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}
+          path: dist/${{ needs.prepare.outputs.tag }}/
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.15.1"
+
+      - name: Smoke exact assembled bytes
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -eu
+          (cd "dist/$RELEASE_TAG" && shasum -a 256 --check SHA256SUMS)
+          python3.15 build.py published-smoke --target aarch64-apple-darwin --tag "$RELEASE_TAG"
+
+  smoke-linux:
+    runs-on: ubuntu-24.04
+    needs: [prepare, assemble]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}
+          path: dist/${{ needs.prepare.outputs.tag }}/
+
+      - name: Smoke exact assembled bytes in Alpine musl
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -eu
+          (cd "dist/$RELEASE_TAG" && sha256sum --check SHA256SUMS)
+          docker run --platform linux/amd64 --rm \
+            --volume "$PWD:/work" \
+            --workdir /work \
+            "${{ env.ALPINE_AMD64 }}" sh -ec '
+              apk add --no-cache python3
+              python3 build.py published-smoke --target x86_64-unknown-linux-musl --tag "$RELEASE_TAG"
+            '
 
   publish:
-    needs: [resolve, assemble, smoke]
-    runs-on: macos-14
+    runs-on: ubuntu-24.04
+    needs: [prepare, assemble, smoke-macos, smoke-linux]
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          name: release-${{ needs.resolve.outputs.release_tag }}
-          path: dist/${{ needs.resolve.outputs.release_tag }}/
-      - run: >-
-          gh release create "${{ needs.resolve.outputs.release_tag }}"
-          --target "$GITHUB_SHA" --prerelease
-          --title "node-26.12.1+${{ needs.resolve.outputs.release_tag }}"
-          dist/${{ needs.resolve.outputs.release_tag }}/*
+          name: release-${{ needs.prepare.outputs.tag }}
+          path: dist/${{ needs.prepare.outputs.tag }}/
+
+      - name: Verify assembled release hashes
+        run: (cd "dist/${{ needs.prepare.outputs.tag }}" && sha256sum --check SHA256SUMS)
+
+      - name: Create prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -eu
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          Node.js $NODE_VERSION lean standalone distributions for build tag $RELEASE_TAG.
+
+          Small-ICU, no npm/npx, no Corepack. V8 JIT, snapshots, CJS/ESM,
+          workers, inspector, N-API addon loading, and shipped headers work;
+          see the per-target artifact manifests for archive digests,
+          toolchain identity, hardening verdicts, and qualification.
+
+          CPU floors: Apple M1 (macOS 26 deployment minimum),
+          x86-64-v2 (Alpine musl 1.2.6 minimum). The macOS binary is a PIE
+          MH_EXECUTE executable with an exact LC_BUILD_VERSION floor of 26.0;
+          the Linux binary is a PIE ET_DYN executable using the musl loader
+          with RELRO, BIND_NOW, and a non-executable stack. macOS binaries
+          carry ad-hoc signatures (packaging integrity only, not notarization).
+
+          Source revision: $GITHUB_SHA
+          EOF
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --prerelease \
+            --title "node-$NODE_VERSION+$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" "dist/$RELEASE_TAG"/*

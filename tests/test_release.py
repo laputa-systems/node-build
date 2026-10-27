@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -17,16 +18,32 @@ from buildsys import reproduce as reproduce_runner
 
 class ResolveReleaseTest(unittest.TestCase):
     def test_empty_defaults_to_yyyymmdd(self):
-        tag = resolve_release.resolve_release_tag("")
-        self.assertRegex(tag, r"^\d{8}$")
+        commit = "a" * 40
+        now = datetime(2026, 10, 27, 1, tzinfo=timezone.utc)
+        self.assertEqual(
+            resolve_release.resolve_release_tag("", commit, commit, now), "20261027"
+        )
 
-    def test_valid_tag_passes_through(self):
-        self.assertEqual(resolve_release.resolve_release_tag("20261025"), "20261025")
+    def test_valid_tag_requires_matching_checkout_and_existing_ref(self):
+        commit = "a" * 40
+        self.assertEqual(
+            resolve_release.resolve_release_tag("20261025", commit, commit),
+            "20261025",
+        )
+        resolve_release.verify_existing_tag_target("20261025", commit, commit)
 
-    def test_invalid_tag_rejected(self):
-        for bad in ("latest", "2026-10-25", "v20261025", "123"):
-            with self.assertRaises(ValueError):
-                resolve_release.resolve_release_tag(bad)
+    def test_invalid_tag_and_mismatched_commit_fail(self):
+        commit = "a" * 40
+        with self.assertRaises(ValueError):
+            resolve_release.resolve_release_tag("$(touch bad)", commit, commit)
+        with self.assertRaises(ValueError):
+            resolve_release.resolve_release_tag("2026-10-25", commit, commit)
+        with self.assertRaises(ValueError):
+            resolve_release.resolve_release_tag("20261025", commit, "b" * 40)
+        with self.assertRaises(ValueError):
+            resolve_release.verify_existing_tag_target("20261025", commit, "b" * 40)
+        with self.assertRaises(ValueError):
+            resolve_release.resolve_release_tag("20261025", "deadbeef", "deadbeef")
 
 
 class TagCollisionTest(unittest.TestCase):
@@ -62,6 +79,31 @@ class WorkflowTest(unittest.TestCase):
         for pin in pins:
             self.assertRegex(pin, r"^[0-9a-f]{40}$")
 
+    def test_preflight_validates_tag_and_runs_tests_before_builds(self):
+        text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        tests = text.index("- name: Run fast controller tests")
+        macos_build = text.index("  build-macos:")
+        linux_build = text.index("  build-linux:")
+        self.assertLess(tests, macos_build)
+        self.assertLess(tests, linux_build)
+        self.assertIn("RELEASE_TAG_INPUT: ${{ inputs.release_tag }}", text)
+        self.assertIn(".github/scripts/resolve_release.py", text)
+        self.assertIn("needs: [prepare]", text)
+        self.assertNotIn('TAG="${{ inputs.release_tag }}"', text)
+
+    def test_targets_and_release_gate_use_current_contract(self):
+        text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        self.assertIn('NODE_VERSION: "26.12.1"', text)
+        self.assertIn("aarch64-apple-darwin", text)
+        self.assertIn("x86_64-unknown-linux-musl", text)
+        self.assertIn("build.py assemble --tag", text)
+        self.assertIn("build.py published-smoke --target aarch64-apple-darwin", text)
+        self.assertIn("build.py published-smoke --target x86_64-unknown-linux-musl", text)
+        self.assertIn('gh release create "$RELEASE_TAG" --target "$GITHUB_SHA"', text)
+        self.assertIn("xcode-27", text)
+        self.assertNotIn("macos-14", text)
+        self.assertNotIn("GH_TOKEN", text.split("  publish:", 1)[0])
+
     def test_publish_uses_prerelease_and_sha_target(self):
         text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
         self.assertIn("--prerelease", text)
@@ -72,7 +114,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("contents: read", text)
         self.assertIn("contents: write", text)
         self.assertIn("if-no-files-found: error", text)
-        self.assertIn("macos-14", text)
+        self.assertIn("persist-credentials: false", text)
+        self.assertIn("fetch-depth: 0", text)
 
     def test_assembly_inputs_travel_through_artifact(self):
         workflow = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
@@ -82,6 +125,12 @@ class WorkflowTest(unittest.TestCase):
             "qualify/qualify-record.json",
         ):
             self.assertIn(record, workflow)
+
+    def test_smokes_verify_exact_assembled_bytes(self):
+        text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        self.assertIn("SHA256SUMS", text)
+        self.assertIn("shasum -a 256 --check SHA256SUMS", text)
+        self.assertIn("sha256sum --check SHA256SUMS", text)
 
 
 class ReproduceDiffTest(unittest.TestCase):
