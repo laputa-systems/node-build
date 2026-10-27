@@ -207,10 +207,17 @@ class PatchTest(unittest.TestCase):
 class BootstrapTest(unittest.TestCase):
     def test_lock_matches_host(self):
         import platform
+        import subprocess
 
         lock = inputs.load_json(REPO_ROOT / "bootstrap.lock.json")
         bootstrap.validate_bootstrap_lock(lock)
         if platform.system() == "Linux":
+            completed = subprocess.run(
+                ["ldd", "--version"], capture_output=True, text=True, timeout=60
+            )
+            probe = (completed.stdout or "") + (completed.stderr or "")
+            if "musl" not in probe:
+                self.skipTest("linux lock check needs a musl host")
             identity = bootstrap.linux_current_identity()
             mismatches = [
                 finding for finding in bootstrap.check_linux_toolchain(lock, identity)
