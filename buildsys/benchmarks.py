@@ -35,7 +35,7 @@ STARTUP_PROBE = "1"
 def time_process(binary: Path, args: list[str], cwd: Path, timeout: int = 120) -> float:
     start = time.monotonic()
     completed = subprocess.run(
-        [str(binary), *args], cwd=cwd, capture_output=True, text=True, timeout=timeout
+        [str(binary), *args], cwd=cwd, capture_output=True, text=True, timeout=timeout, check=False
     )
     elapsed_ms = (time.monotonic() - start) * 1000
     if completed.returncode != 0:
@@ -45,7 +45,7 @@ def time_process(binary: Path, args: list[str], cwd: Path, timeout: int = 120) -
 
 def time_probe(binary: Path, probe: str, cwd: Path) -> float:
     completed = subprocess.run(
-        [str(binary), "-e", probe], cwd=cwd, capture_output=True, text=True, timeout=120
+        [str(binary), "-e", probe], cwd=cwd, capture_output=True, text=True, timeout=120, check=False
     )
     if completed.returncode != 0:
         raise RuntimeError(f"probe failed on {binary}: {completed.stderr[:200]}")

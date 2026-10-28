@@ -35,7 +35,7 @@ def run_node(node: Path, args: list[str], cwd: Path, extra_env: dict | None = No
         env.update(extra_env)
     return subprocess.run(
         [str(node), *args], cwd=cwd, env=env,
-        capture_output=True, text=True, timeout=CHECK_TIMEOUT,
+        capture_output=True, text=True, timeout=CHECK_TIMEOUT, check=False,
     )
 
 
@@ -348,7 +348,7 @@ def check_napi_addon(
         ]
     compile_result = subprocess.run(
         compile_command,
-        capture_output=True, text=True, timeout=CHECK_TIMEOUT,
+        capture_output=True, text=True, timeout=CHECK_TIMEOUT, check=False,
     )
     if compile_result.returncode != 0:
         raise SmokeError(f"addon compile failed: {compile_result.stderr}")

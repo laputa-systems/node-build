@@ -16,7 +16,7 @@ class AssemblyError(Exception):
 def git_revision(repo_root: Path) -> str:
     completed = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo_root,
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, timeout=60, check=False,
     )
     if completed.returncode != 0:
         raise AssemblyError("not a git checkout")
@@ -26,7 +26,7 @@ def git_revision(repo_root: Path) -> str:
 def git_dirty(repo_root: Path) -> bool:
     completed = subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=all"],
-        cwd=repo_root, capture_output=True, text=True, timeout=60,
+        cwd=repo_root, capture_output=True, text=True, timeout=60, check=False,
     )
     if completed.returncode != 0:
         raise AssemblyError("git status failed")
@@ -36,7 +36,7 @@ def git_dirty(repo_root: Path) -> bool:
 def tag_target(tag: str, repo_root: Path) -> str | None:
     completed = subprocess.run(
         ["git", "rev-parse", f"refs/tags/{tag}"], cwd=repo_root,
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, timeout=60, check=False,
     )
     if completed.returncode != 0:
         return None

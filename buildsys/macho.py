@@ -250,7 +250,7 @@ def inspect(path: Path) -> dict:
 def signature_status(path: Path) -> tuple[bool, str]:
     result = subprocess.run(
         ["codesign", "--verify", "--strict", str(path)],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=120, check=False,
     )
     detail = (result.stderr or result.stdout).strip()
     return result.returncode == 0, detail

@@ -59,7 +59,7 @@ def validate_bootstrap_lock(lock: dict) -> None:
 
 
 def _run(argv: list[str]) -> str:
-    completed = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+    completed = subprocess.run(argv, capture_output=True, text=True, timeout=60, check=False)
     if completed.returncode != 0:
         raise RuntimeError(f"{' '.join(argv)} failed: {completed.stderr.strip()}")
     return (completed.stdout or "") + (completed.stderr or "")
@@ -165,7 +165,7 @@ def linux_clang_version() -> str:
 
 def musl_version() -> str:
     completed = subprocess.run(
-        ["ldd", "--version"], capture_output=True, text=True, timeout=60
+        ["ldd", "--version"], capture_output=True, text=True, timeout=60, check=False
     )
     output = (completed.stdout or "") + (completed.stderr or "")
     match = re.search(r"Version\s+(\S+)", output)

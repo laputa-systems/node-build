@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from buildsys import bootstrap, inputs, recipes
+from buildsys import inputs, recipes
 from buildsys.product import NODE_VERSION
 
 
@@ -105,7 +105,7 @@ def run_configure(source: Path, repo_root: Path, triple: str, recipe: dict) -> N
     command = recipes.configure_command(str(source), recipe)
     completed = subprocess.run(
         command, cwd=source, env=configure_env(recipe),
-        capture_output=True, text=True, timeout=600,
+        capture_output=True, text=True, timeout=600, check=False,
     )
     if completed.returncode != 0:
         raise BuildError(f"configure failed:\n{completed.stdout}\n{completed.stderr}")
@@ -124,8 +124,7 @@ def run_make(source: Path, recipe: dict, jobs: int, log_path: Path) -> None:
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )
         assert process.stdout is not None
-        for line in process.stdout:
-            log.write(line)
+        log.writelines(process.stdout)
         if process.wait() != 0:
             raise BuildError(f"make failed; see {log_path}")
 

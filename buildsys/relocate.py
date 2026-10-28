@@ -27,7 +27,7 @@ def copy_tree(source: Path, destination: Path) -> Path:
 
 def run_version(node: Path, timeout: int = 60) -> str:
     completed = subprocess.run(
-        [str(node), "--version"], capture_output=True, text=True, timeout=timeout
+        [str(node), "--version"], capture_output=True, text=True, timeout=timeout, check=False
     )
     if completed.returncode != 0:
         raise RuntimeError(f"{node} --version failed: {completed.stderr}")

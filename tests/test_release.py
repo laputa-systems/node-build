@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +12,7 @@ sys.path.insert(0, str(REPO_ROOT / ".github" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT))
 
 import resolve_release
+
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
 
@@ -19,7 +20,7 @@ from buildsys import reproduce as reproduce_runner
 class ResolveReleaseTest(unittest.TestCase):
     def test_empty_defaults_to_yyyymmdd(self):
         commit = "a" * 40
-        now = datetime(2026, 10, 27, 1, tzinfo=timezone.utc)
+        now = datetime(2026, 10, 27, 1, tzinfo=UTC)
         self.assertEqual(
             resolve_release.resolve_release_tag("", commit, commit, now), "20261027"
         )

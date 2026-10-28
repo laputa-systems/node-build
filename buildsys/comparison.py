@@ -14,7 +14,7 @@ class CompareError(Exception):
 
 def binary_version(binary: Path, cwd: Path) -> str:
     completed = subprocess.run(
-        [str(binary), "--version"], cwd=cwd, capture_output=True, text=True, timeout=60
+        [str(binary), "--version"], cwd=cwd, capture_output=True, text=True, timeout=60, check=False
     )
     if completed.returncode != 0:
         raise CompareError(f"{binary} --version failed")

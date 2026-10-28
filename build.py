@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             args.target = resolve_target(None)
         try:
             binary = node.build(REPO_ROOT, args.target, args.jobs)
-        except (node.BuildError, Exception) as error:
+        except node.BuildError as error:
             return _fail(str(error))
         print(f"built: {binary}")
         return 0
@@ -186,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
             from buildsys import node as node_driver
 
             result = package.package(REPO_ROOT, args.target, node_driver.source_dir(REPO_ROOT))
-        except (package.PackageError, Exception) as error:
+        except package.PackageError as error:
             return _fail(str(error))
         print(f"archive: {result['archive']}")
         print(f"sha256: {result['sha256']}")
@@ -196,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
             args.target = resolve_target(None)
         try:
             record = qualify_runner.qualify(REPO_ROOT, args.target)
-        except (qualify_runner.QualifyError, Exception) as error:
+        except qualify_runner.QualifyError as error:
             return _fail(str(error))
         print(f"qualified: {record['archive']}")
         print(f"smoke: {record['smoke_passed']}/{record['smoke_total']} passed")
@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
                 return _fail("no --target given")
         try:
             result = release_assembler.assemble_all(REPO_ROOT, triples, args.tag, args.repo)
-        except (release_assembler.AssemblyError, Exception) as error:
+        except release_assembler.AssemblyError as error:
             return _fail(str(error))
         print(f"release: {result['release_title']} -> {result['release_dir']}")
         print(f"targets: {', '.join(result['targets'])}")
@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
             args.target = resolve_target(None)
         try:
             record = published_smoke_runner.published_smoke(REPO_ROOT, args.target, args.tag)
-        except (published_smoke_runner.PublishedSmokeError, Exception) as error:
+        except published_smoke_runner.PublishedSmokeError as error:
             return _fail(str(error))
         print(f"published smoke: {record['passed']}/{record['total']} passed")
         return 0
@@ -234,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
             from buildsys import comparison
 
             record = comparison.compare(REPO_ROOT, args.target, args.reference)
-        except (comparison.CompareError, Exception) as error:
+        except comparison.CompareError as error:
             return _fail(str(error))
         for name, probe in record["probes"].items():
             print(f"{name}: {probe['verdict']}")
@@ -246,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
             from buildsys import budgets
 
             record = budgets.check_budgets(REPO_ROOT, args.target)
-        except (budgets.BudgetError, Exception) as error:
+        except budgets.BudgetError as error:
             return _fail(str(error))
         print(f"budgets ok: compressed {record['compressed']}, payload {record['payload']}")
         return 0
@@ -257,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
             from buildsys import reproduce as reproduce_runner
 
             record = reproduce_runner.reproduce(REPO_ROOT, args.target, args.jobs)
-        except (reproduce_runner.ReproduceError, Exception) as error:
+        except reproduce_runner.ReproduceError as error:
             return _fail(str(error))
         print(f"reproduce verdict: {record['verdict']}")
         return 0

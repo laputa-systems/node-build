@@ -1,7 +1,8 @@
 PYTHON ?= python3
 TARGET ?= aarch64-apple-darwin
+RUFF_VERSION ?= 0.17.3
 
-.PHONY: controller-test fetch doctor clean
+.PHONY: controller-test fetch doctor clean lint
 
 controller-test:
 	$(PYTHON) build.py controller-test
@@ -14,3 +15,6 @@ doctor:
 
 clean:
 	rm -rf build dist .work/tmp
+
+lint:
+	uvx "ruff@$(RUFF_VERSION)" check build.py buildsys tests .github/scripts

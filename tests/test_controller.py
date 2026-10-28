@@ -197,7 +197,7 @@ class PatchTest(unittest.TestCase):
         probe.mkdir(parents=True, exist_ok=True)
         (probe / "common.gypi").write_text("nothing relevant here\n", encoding="utf-8")
         try:
-            with self.assertRaises(Exception):
+            with self.assertRaises(node_driver.BuildError):
                 node_driver.apply_product_patches(probe)
         finally:
             (probe / "common.gypi").unlink(missing_ok=True)
@@ -213,7 +213,7 @@ class BootstrapTest(unittest.TestCase):
         bootstrap.validate_bootstrap_lock(lock)
         if platform.system() == "Linux":
             completed = subprocess.run(
-                ["ldd", "--version"], capture_output=True, text=True, timeout=60
+                ["ldd", "--version"], capture_output=True, text=True, timeout=60, check=False
             )
             probe = (completed.stdout or "") + (completed.stderr or "")
             if "musl" not in probe:

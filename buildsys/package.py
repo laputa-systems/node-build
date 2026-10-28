@@ -33,8 +33,7 @@ def install_to_stage(source: Path, stage: Path, recipe: dict) -> Path:
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )
         assert process.stdout is not None
-        for line in process.stdout:
-            log.write(line)
+        log.writelines(process.stdout)
         if process.wait() != 0:
             raise PackageError(f"install failed; see {log_path}")
     if not install_root.is_dir():

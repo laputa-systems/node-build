@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from buildsys import inputs, relocate, smoke, validate_product
-from buildsys.product import local_archive_name, NODE_VERSION
+from buildsys.product import NODE_VERSION, local_archive_name
 
 
 class QualifyError(Exception):

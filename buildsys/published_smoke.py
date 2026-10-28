@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from buildsys import inputs, smoke
-from buildsys.product import release_archive_name, NODE_VERSION
+from buildsys.product import NODE_VERSION, release_archive_name
 
 
 class PublishedSmokeError(Exception):
@@ -20,7 +20,7 @@ def _expected_entry(metadata: dict, triple: str) -> dict:
     if metadata.get("target") == triple and "sha256" in metadata:
         return metadata
     raise PublishedSmokeError(
-        f"smoke-metadata has no entry for {triple}: {sorted((targets or {}))}"
+        f"smoke-metadata has no entry for {triple}: {sorted(targets or {})}"
     )
 
 

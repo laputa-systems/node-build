@@ -191,9 +191,8 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
             buckets["elf-arch"].append(f"{name}: {header.arch}")
         if not header.pie:
             buckets["elf-pie"].append(f"{name}: {header.kind}")
-        if image in required or name == "bin/node":
-            if interp != elf.EXPECTED_INTERP_X86_64:
-                buckets["elf-interp"].append(f"{name}: {interp}")
+        if (image in required or name == "bin/node") and interp != elf.EXPECTED_INTERP_X86_64:
+            buckets["elf-interp"].append(f"{name}: {interp}")
         for dependency in deps:
             if not elf.allowed_dependency(dependency):
                 buckets["elf-deps"].append(f"{name} -> {dependency}")
