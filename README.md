@@ -7,18 +7,13 @@ Lean, relocatable Node.js 26.12.1 distributions: Apple Silicon macOS
 ## Get it
 
 Download a dated prerelease from GitHub (`node-26.12.1+YYYYMMDD`, marked
-prerelease), or install the latest one with the `dl` helper once the
-`node-build` stanza lands:
-
-```sh
-sh ~/usr/dl node-build
-```
+prerelease).
 
 ## Run it
 
 ```sh
 tar -xzf node-26.12.1+YYYYMMDD-<triple>-install_only_stripped.tar.gz
-./node/bin/node --version
+PATH="$PWD/node/bin:$PATH" node --version
 ```
 
 The tree relocates to any path, including paths with spaces. macOS 26+
