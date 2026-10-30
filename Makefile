@@ -1,6 +1,6 @@
 PYTHON ?= python3
 TARGET ?= aarch64-apple-darwin
-RUFF_VERSION ?= 0.17.3
+RUFF_VERSION ?= 0.17.2
 
 .PHONY: controller-test fetch doctor clean lint
 

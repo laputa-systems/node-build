@@ -6,3 +6,8 @@ __pycache__/
 .DS_Store
 *.orig
 *.rej
+.venv/
+.tox/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
