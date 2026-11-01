@@ -25,7 +25,7 @@ env:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
@@ -112,7 +112,7 @@ jobs:
           if-no-files-found: warn
 
   build-linux:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [prepare]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -178,7 +178,7 @@ jobs:
           if-no-files-found: warn
 
   assemble:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [prepare, build-macos, build-linux]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -236,7 +236,7 @@ jobs:
           python3.15 build.py published-smoke --target aarch64-apple-darwin --tag "$RELEASE_TAG"
 
   smoke-linux:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [prepare, assemble]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -264,7 +264,7 @@ jobs:
             '
 
   publish:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [prepare, assemble, smoke-macos, smoke-linux]
     permissions:
       contents: write
