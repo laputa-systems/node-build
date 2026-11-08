@@ -146,7 +146,7 @@ jobs:
             --workdir /work \
             --env TMPDIR=/work/.work/tmp \
             "${{ env.ALPINE_AMD64 }}" sh -ec '
-              apk add --no-cache python3=3.14.10-r1 build-base=0.5-r4 clang23=23.1.4-r0 linux-headers=7.2.1-r0 perl=5.44.0-r0 pkgconf=3.0.10-r0
+              apk add --no-cache python3=3.14.10-r1 build-base=0.5-r4 clang23=23.1.5-r0 linux-headers=7.2.1-r0 perl=5.44.0-r0 pkgconf=3.0.10-r0
               python3 build.py doctor --target x86_64-unknown-linux-musl
               python3 build.py fetch --target x86_64-unknown-linux-musl
               python3 build.py build --target x86_64-unknown-linux-musl
