@@ -260,26 +260,32 @@ if __name__ == "__main__":
 
 
 class RunMakeTest(unittest.TestCase):
-    def test_builds_the_js2c_tool_before_the_parallel_build(self):
+    def test_inherited_make_variables_do_not_reach_node_make(self):
         from buildsys import node
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             bin_dir = root / "bin"
             bin_dir.mkdir()
-            calls = root / "calls"
+            seen = root / "seen"
             make = bin_dir / "make"
-            make.write_text(f'#!/bin/sh\necho "$*" >> "{calls}"\n', encoding="utf-8")
+            make.write_text(
+                f'#!/bin/sh\necho "$* TARGET=${{TARGET-unset}} MAKEFLAGS=${{MAKEFLAGS-unset}}" > "{seen}"\n',
+                encoding="utf-8",
+            )
             make.chmod(0o755)
             recipe = {"configure": [], "cflags": []}
-            original = os.environ["PATH"]
-            os.environ["PATH"] = f"{bin_dir}:{original}"
+            saved = {name: os.environ.get(name) for name in ("PATH", "TARGET", "MAKEFLAGS")}
+            os.environ["PATH"] = f"{bin_dir}:{saved['PATH']}"
+            os.environ["TARGET"] = "x86_64-unknown-linux-musl"
+            os.environ["MAKEFLAGS"] = " -- TARGET=x86_64-unknown-linux-musl"
             try:
                 node.run_make(root, recipe, 4, root / "make.log")
             finally:
-                os.environ["PATH"] = original
+                for name, value in saved.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
 
-            self.assertEqual(
-                calls.read_text(encoding="utf-8").splitlines(),
-                ["-C out BUILDTYPE=Release -j4 node_js2c", "-j4"],
-            )
+            self.assertEqual(seen.read_text(encoding="utf-8").strip(), "-j4 TARGET=unset MAKEFLAGS=unset")
