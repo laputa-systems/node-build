@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import os
 import sys
 import tarfile
 import tempfile
@@ -256,3 +257,29 @@ class BootstrapTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunMakeTest(unittest.TestCase):
+    def test_builds_the_js2c_tool_before_the_parallel_build(self):
+        from buildsys import node
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            calls = root / "calls"
+            make = bin_dir / "make"
+            make.write_text(f'#!/bin/sh\necho "$*" >> "{calls}"\n', encoding="utf-8")
+            make.chmod(0o755)
+            recipe = {"configure": [], "cflags": []}
+            original = os.environ["PATH"]
+            os.environ["PATH"] = f"{bin_dir}:{original}"
+            try:
+                node.run_make(root, recipe, 4, root / "make.log")
+            finally:
+                os.environ["PATH"] = original
+
+            self.assertEqual(
+                calls.read_text(encoding="utf-8").splitlines(),
+                ["-C out BUILDTYPE=Release -j4 node_js2c", "-j4"],
+            )

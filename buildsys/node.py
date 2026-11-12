@@ -135,15 +135,20 @@ def run_configure(source: Path, repo_root: Path, triple: str, recipe: dict) -> N
 def run_make(source: Path, recipe: dict, jobs: int, log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "w", encoding="utf-8") as log:
-        process = subprocess.Popen(
+        # Node's generated makefiles let the js2c action start before its node_js2c tool links under -j.
+        for command in (
+            ["make", "-C", "out", "BUILDTYPE=Release", f"-j{jobs}", "node_js2c"],
             ["make", f"-j{jobs}"],
-            cwd=source, env=configure_env(recipe),
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
-        assert process.stdout is not None
-        log.writelines(process.stdout)
-        if process.wait() != 0:
-            raise BuildError(f"make failed; see {log_path}")
+        ):
+            process = subprocess.Popen(
+                command,
+                cwd=source, env=configure_env(recipe),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            )
+            assert process.stdout is not None
+            log.writelines(process.stdout)
+            if process.wait() != 0:
+                raise BuildError(f"make failed; see {log_path}")
 
 
 def built_node(source: Path) -> Path:
