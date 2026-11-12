@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from buildsys import bootstrap, inputs, node, package, qualify_runner, recipes
+from buildsys import bootstrap, node, package, qualify_runner, recipes
 from buildsys import published_smoke as published_smoke_runner
 from buildsys import release as release_assembler
 from buildsys.targets import (
@@ -17,8 +17,6 @@ from buildsys.targets import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent
-CACHE_DIR = REPO_ROOT / "build" / "cache"
-SOURCES_LOCK = REPO_ROOT / "sources.lock.json"
 BOOTSTRAP_LOCK = REPO_ROOT / "bootstrap.lock.json"
 
 
@@ -32,12 +30,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         wanted = target_for_triple(args.target)
     except UnsupportedTargetError as error:
         return _fail(str(error))
-    lock = inputs.load_json(BOOTSTRAP_LOCK)
     try:
-        bootstrap.validate_bootstrap_lock(lock)
+        lock = bootstrap.load_bootstrap_lock(BOOTSTRAP_LOCK)
     except ValueError as error:
         return _fail(str(error))
-    if wanted.family == "linux":
+    if wanted.is_linux:
         from buildsys import recipes as recipe_mod
 
         try:
@@ -94,32 +91,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         return _fail(str(error))
     _ = wanted
     try:
-        lock = inputs.load_lock(SOURCES_LOCK)
-    except (OSError, inputs.VerificationError) as error:
+        cached = node.fetch_sources(REPO_ROOT)
+    except node.BuildError as error:
         return _fail(str(error))
-    for entry in lock["inputs"]:
-        if entry["role"] != "source":
-            continue
-        destination = CACHE_DIR / f"{entry['name']}-{entry['version']}.tar.gz"
-        if destination.exists():
-            try:
-                inputs.verify_file(destination, entry["sha256"], entry["size"])
-                print(f"cached: {destination} (verified)")
-                continue
-            except inputs.VerificationError as error:
-                print(f"stale cache, refetching: {error}")
-        failure = ""
-        for url in inputs.entry_urls(entry):
-            print(f"fetching: {url}")
-            try:
-                inputs.fetch_url(url, destination, entry["sha256"], entry["size"])
-            except (OSError, inputs.VerificationError) as error:
-                failure = str(error)
-                continue
-            print(f"cached: {destination} (verified)")
-            break
-        else:
-            return _fail(failure)
+    for path in cached:
+        print(f"cached: {path} (verified)")
     return 0
 
 

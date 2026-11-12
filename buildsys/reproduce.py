@@ -4,13 +4,13 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from buildsys import inputs, macho
+from buildlib import elf, macho
+
+from buildsys import inputs
 
 
 def normalize_for_triple(binary: Path, triple: str) -> bytes:
     if triple == "x86_64-unknown-linux-musl":
-        from buildsys import elf
-
         return elf.normalized_bytes(binary)
     return macho.normalized_bytes(binary)
 

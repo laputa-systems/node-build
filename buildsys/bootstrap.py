@@ -4,7 +4,12 @@ import platform
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from buildlib import locks
 
 
 @dataclass(frozen=True)
@@ -36,7 +41,16 @@ class DoctorFinding:
     detail: str
 
 
-def validate_bootstrap_lock(lock: dict) -> None:
+def load_bootstrap_lock(path: Path) -> Mapping[str, Any]:
+    try:
+        lock = locks.load_bootstrap(path)
+    except locks.LockError as error:
+        raise ValueError(str(error)) from error
+    validate_bootstrap_lock(lock)
+    return lock
+
+
+def validate_bootstrap_lock(lock: Mapping[str, Any]) -> None:
     for key in ("toolchain", "cpu_baseline", "host_requirements"):
         if key not in lock:
             raise ValueError(f"bootstrap lock missing section: {key}")
@@ -101,7 +115,7 @@ def current_identity() -> ToolchainIdentity:
     )
 
 
-def check_locked_toolchain(lock: dict, identity: ToolchainIdentity) -> list[DoctorFinding]:
+def check_locked_toolchain(lock: Mapping[str, Any], identity: ToolchainIdentity) -> list[DoctorFinding]:
     toolchain = lock["toolchain"]
     findings = [
         DoctorFinding(
@@ -133,7 +147,7 @@ def check_locked_toolchain(lock: dict, identity: ToolchainIdentity) -> list[Doct
     return findings
 
 
-def check_locked_baseline(lock: dict) -> list[DoctorFinding]:
+def check_locked_baseline(lock: Mapping[str, Any]) -> list[DoctorFinding]:
     baseline = lock["cpu_baseline"]
     findings = [
         DoctorFinding(
@@ -187,7 +201,7 @@ def linux_current_identity() -> LinuxToolchainIdentity:
 
 
 def check_linux_toolchain(
-    lock: dict, identity: LinuxToolchainIdentity
+    lock: Mapping[str, Any], identity: LinuxToolchainIdentity
 ) -> list[DoctorFinding]:
     toolchain = lock["linux_toolchain"]
     return [
@@ -219,7 +233,7 @@ def check_linux_toolchain(
     ]
 
 
-def check_linux_baseline(lock: dict) -> list[DoctorFinding]:
+def check_linux_baseline(lock: Mapping[str, Any]) -> list[DoctorFinding]:
     baseline = lock["linux_baseline"]
     return [
         DoctorFinding(

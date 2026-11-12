@@ -10,7 +10,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from buildsys import inputs, product
+from buildlib import hashing, release
+
+from buildsys import product
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
 
@@ -47,7 +49,7 @@ class AssembleTest(unittest.TestCase):
         (build / "build-receipt.json").write_text("{}", encoding="utf-8")
         (build / "qualify" / "qualify-record.json").write_text(
             json.dumps({
-                "sha256": inputs.sha256_of_file(archive),
+                "sha256": hashing.sha256_file(archive),
                 "product_checks": checks, "smoke": checks, "relocation": checks,
                 "smoke_passed": 1, "smoke_total": 1,
             }),
@@ -77,12 +79,12 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(manifest["source_revision"], self.revision)
         self.assertEqual(
             manifest["sources_lock_sha256"],
-            inputs.sha256_of_file(self.work / "sources.lock.json"),
+            hashing.sha256_file(self.work / "sources.lock.json"),
         )
-        lines = (release_dir / product.CHECKSUMS_NAME).read_text(encoding="utf-8").splitlines()
+        lines = (release_dir / release.CHECKSUMS_NAME).read_text(encoding="utf-8").splitlines()
         names = [line.split("  ", 1)[1] for line in lines]
         self.assertEqual(names, sorted(names))
-        self.assertNotIn(product.CHECKSUMS_NAME, names)
+        self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
 
     def test_refuses_dirty_checkout_and_existing_release(self):

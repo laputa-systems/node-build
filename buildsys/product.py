@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from buildlib import release
+
 PRODUCT = "node"
 NODE_VERSION = "26.12.1"
 
@@ -11,20 +13,18 @@ STAGED_LIBDIR = "lib"
 LICENSE_NAME = "LICENSE"
 
 RELEASE_DIRNAME = "release"
-CHECKSUMS_NAME = "SHA256SUMS"
-MANIFEST_SCHEMA_VERSION = 1
 
 
 def archive_name(version: str, triple: str) -> str:
-    return f"{PRODUCT}-{version}-{triple}.tar.xz"
+    return release.archive_name(PRODUCT, version, triple)
 
 
 def manifest_name(version: str, triple: str) -> str:
-    return f"{PRODUCT}-{version}-{triple}.manifest.json"
+    return release.manifest_name(PRODUCT, version, triple)
 
 
 def expected_release_assets(version: str, triples: tuple[str, ...]) -> tuple[str, ...]:
     assets = [archive_name(version, triple) for triple in triples]
     assets.extend(manifest_name(version, triple) for triple in triples)
-    assets.append(CHECKSUMS_NAME)
+    assets.append(release.CHECKSUMS_NAME)
     return tuple(sorted(assets))

@@ -1,12 +1,18 @@
+import hashlib
 import io
+import json
 import sys
 import tarfile
+import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from buildlib import locks
+
+import buildsys
 from buildsys import bootstrap, inputs, product, recipes, targets
 
 
@@ -20,7 +26,7 @@ class TargetTest(unittest.TestCase):
     def test_linux_x64_musl_supported(self):
         wanted = targets.target_for_triple("x86_64-unknown-linux-musl")
         self.assertEqual(wanted.machine, "x86_64")
-        self.assertEqual(wanted.family, "linux")
+        self.assertEqual(wanted.family, "linux-musl")
         self.assertEqual(wanted.cpu_baseline_cflag, "-march=x86-64-v2")
 
     def test_linux_arm64_still_deferred(self):
@@ -61,43 +67,47 @@ class ProductTest(unittest.TestCase):
 
 class InputsTest(unittest.TestCase):
     def test_lock_schema_loads(self):
-        lock = inputs.load_lock(REPO_ROOT / "sources.lock.json")
-        entry = inputs.lock_entry(lock, "node")
-        self.assertEqual(entry["version"], "26.12.1")
-        self.assertEqual(len(entry["sha256"]), 64)
-
-    def test_lock_without_schema_version_rejected(self):
-        scratch = REPO_ROOT / ".work" / "tmp" / "no-schema.lock.json"
-        scratch.parent.mkdir(parents=True, exist_ok=True)
-        scratch.write_text('{"inputs": []}', encoding="utf-8")
-        try:
-            with self.assertRaises(inputs.VerificationError):
-                inputs.load_lock(scratch)
-        finally:
-            scratch.unlink(missing_ok=True)
+        entry = locks.load_sources(REPO_ROOT / "sources.lock.json").get("node")
+        self.assertEqual(entry.version, "26.12.1")
+        self.assertEqual(len(entry.sha256), 64)
 
     def test_lock_files_use_schema_version_one(self):
         for name in ("sources.lock.json", "bootstrap.lock.json", "release-budgets.json"):
-            data = inputs.load_json(REPO_ROOT / name)
+            data = json.loads((REPO_ROOT / name).read_text(encoding="utf-8"))
             self.assertEqual(data["schema_version"], 1, name)
             self.assertNotIn("comment", data, name)
-        budgets = inputs.load_json(REPO_ROOT / "release-budgets.json")["targets"]
+        budgets = locks.load_budgets(REPO_ROOT / "release-budgets.json").targets
         self.assertEqual(sorted(budgets), list(targets.SUPPORTED_TRIPLES))
+        locks.load_bootstrap(REPO_ROOT / "bootstrap.lock.json")
 
-    def test_lock_entry_missing(self):
-        lock = inputs.load_lock(REPO_ROOT / "sources.lock.json")
-        with self.assertRaises(inputs.VerificationError):
-            inputs.lock_entry(lock, "does-not-exist")
+    def test_buildlib_pin_is_one_version_everywhere(self):
+        pinned = locks.load_sources(REPO_ROOT / "sources.lock.json").get("laputa-buildlib")
+        wheel = pinned.url.rsplit("/", 1)[1]
+        self.assertEqual(wheel, f"laputa_buildlib-{pinned.version}-py3-none-any.whl")
+        self.assertIn(
+            f'"laputa-buildlib=={pinned.version}"',
+            (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+        )
+        uv_lock = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
+        self.assertIn(f'{{ url = "{pinned.url}", hash = "sha256:{pinned.sha256}" }}', uv_lock)
 
-    def test_verify_rejects_wrong_size(self):
-        scratch = REPO_ROOT / ".work" / "tmp" / "wrong-size.bin"
-        scratch.parent.mkdir(parents=True, exist_ok=True)
-        scratch.write_bytes(b"abc")
-        try:
-            with self.assertRaises(inputs.VerificationError):
-                inputs.verify_file(scratch, "00" * 32, 999)
-        finally:
-            scratch.unlink(missing_ok=True)
+    def test_cached_wheel_is_used_without_network(self):
+        data = b"wheel bytes"
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            entry = {
+                "name": "laputa-buildlib",
+                "url": "https://invalid.example/laputa_buildlib-0-py3-none-any.whl",
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size": len(data),
+            }
+            (root / "sources.lock.json").write_text(
+                json.dumps({"schema_version": 1, "inputs": [entry]}), encoding="utf-8"
+            )
+            wheel = root / "build" / "cache" / "laputa_buildlib-0-py3-none-any.whl"
+            wheel.parent.mkdir(parents=True)
+            wheel.write_bytes(data)
+            self.assertEqual(buildsys._pinned_wheel(root), wheel)
 
     def test_safe_extract_rejects_escape(self):
         archive = REPO_ROOT / ".work" / "tmp" / "evil.tar"
@@ -213,8 +223,7 @@ class BootstrapTest(unittest.TestCase):
         import platform
         import subprocess
 
-        lock = inputs.load_json(REPO_ROOT / "bootstrap.lock.json")
-        bootstrap.validate_bootstrap_lock(lock)
+        lock = bootstrap.load_bootstrap_lock(REPO_ROOT / "bootstrap.lock.json")
         if platform.system() == "Linux":
             completed = subprocess.run(
                 ["ldd", "--version"], capture_output=True, text=True, timeout=60, check=False

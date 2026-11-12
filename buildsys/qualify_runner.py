@@ -3,6 +3,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from buildlib import hashing
+
 from buildsys import inputs, relocate, smoke, validate_product
 from buildsys.product import NODE_VERSION, archive_name
 
@@ -57,7 +59,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
     )
     record = {
         "archive": str(archive),
-        "sha256": inputs.sha256_of_file(archive),
+        "sha256": hashing.sha256_file(archive),
         "product_checks": [
             {"name": finding.name, "ok": finding.ok, "detail": finding.detail}
             for finding in findings

@@ -6,7 +6,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from buildsys import elf, validate_product
+from buildlib import elf
+
+from buildsys import elf_policy, validate_product
 
 BASE = 0x400000
 
@@ -15,7 +17,7 @@ def build_image(
     *,
     etype: int = elf.ET_DYN,
     machine: int = elf.EM_X86_64,
-    interp: str | None = elf.EXPECTED_INTERP_X86_64,
+    interp: str | None = elf_policy.EXPECTED_INTERP_X86_64,
     needed: tuple[str, ...] = ("libc.musl-x86_64.so.1",),
     rpath: str | None = None,
     relro: bool = True,
@@ -133,7 +135,7 @@ class ELFParserTest(unittest.TestCase):
 
     def test_interpreter_and_dependencies(self):
         path = self.probe()
-        self.assertEqual(elf.interpreter(path), elf.EXPECTED_INTERP_X86_64)
+        self.assertEqual(elf.interpreter(path), elf_policy.EXPECTED_INTERP_X86_64)
         self.assertEqual(elf.dependencies(path), ["libc.musl-x86_64.so.1"])
         self.assertEqual(elf.rpaths(path), [])
 
@@ -148,10 +150,10 @@ class ELFParserTest(unittest.TestCase):
         self.assertTrue(report["stack_nx"])
 
     def test_allowed_dependency(self):
-        self.assertTrue(elf.allowed_dependency("libc.musl-x86_64.so.1"))
-        self.assertTrue(elf.allowed_dependency("libstdc++.so.6"))
-        self.assertFalse(elf.allowed_dependency("/opt/evil/libfoo.so"))
-        self.assertFalse(elf.allowed_dependency("../escape.so"))
+        self.assertTrue(elf_policy.allowed_dependency("libc.musl-x86_64.so.1"))
+        self.assertTrue(elf_policy.allowed_dependency("libstdc++.so.6"))
+        self.assertFalse(elf_policy.allowed_dependency("/opt/evil/libfoo.so"))
+        self.assertFalse(elf_policy.allowed_dependency("../escape.so"))
 
     def test_build_id_normalization_zeroes_desc(self):
         path = self.probe()
@@ -175,12 +177,18 @@ class ELFGateTest(unittest.TestCase):
         findings = validate_product.elf_tree_checks(root, "x86_64")
         return {finding.name: finding.ok for finding in findings}
 
+    def hardening_detail(self, **kwargs) -> str:
+        root = write_tree(**kwargs)
+        findings = validate_product.elf_tree_checks(root, "x86_64")
+        return next(finding.detail for finding in findings if finding.name == "elf-hardening")
+
     def test_good_tree_passes(self):
         results = self.check_names()
         self.assertTrue(all(results.values()), results)
 
     def test_non_pie_fails(self):
-        self.assertFalse(self.check_names(etype=elf.ET_EXEC)["elf-pie"])
+        self.assertFalse(self.check_names(etype=elf.ET_EXEC)["elf-hardening"])
+        self.assertIn("not a PIE", self.hardening_detail(etype=elf.ET_EXEC))
 
     def test_wrong_arch_fails(self):
         self.assertFalse(
@@ -203,17 +211,17 @@ class ELFGateTest(unittest.TestCase):
         )
 
     def test_missing_relro_fails(self):
-        self.assertFalse(self.check_names(relro=False)["elf-relro"])
+        self.assertFalse(self.check_names(relro=False)["elf-hardening"])
+        self.assertIn("PT_GNU_RELRO", self.hardening_detail(relro=False))
 
     def test_missing_bind_now_fails(self):
-        self.assertFalse(self.check_names(bind_now=False)["elf-bind-now"])
+        self.assertFalse(self.check_names(bind_now=False)["elf-hardening"])
+        self.assertIn("lazy binding", self.hardening_detail(bind_now=False))
 
     def test_executable_stack_fails(self):
-        self.assertFalse(
-            self.check_names(
-                stack_flags=elf.PF_R | elf.PF_W | elf.PF_X
-            )["elf-stack-nx"]
-        )
+        stack_flags = elf.PF_R | elf.PF_W | elf.PF_X
+        self.assertFalse(self.check_names(stack_flags=stack_flags)["elf-hardening"])
+        self.assertIn("executable stack", self.hardening_detail(stack_flags=stack_flags))
 
 
 if __name__ == "__main__":

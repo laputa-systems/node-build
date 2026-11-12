@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from buildsys import macho
+from buildlib import elf, macho
+
+from buildsys import elf_policy, macho_paths
 
 
 @dataclass(frozen=True)
@@ -110,12 +112,12 @@ def macho_tree_checks(
                 )
         for rpath in rpaths:
             if rpath.startswith(("@loader_path", "@executable_path")):
-                directories = macho.rpath_directories(rpath, image, install, executables)
+                directories = macho_paths.rpath_directories(rpath, image, install, executables)
                 if not directories or any(directory is None for directory in directories):
                     buckets["macho-rpaths"].append(f"{name}: {rpath}")
                 elif not all(directory.is_dir() for directory in directories if directory):
                     buckets["macho-unresolved-rpaths"].append(f"{name}: {rpath}")
-            elif macho.system_load_path(rpath):
+            elif macho_paths.system_load_path(rpath):
                 if not Path(rpath).is_dir():
                     buckets["macho-unresolved-rpaths"].append(f"{name}: {rpath}")
             else:
@@ -129,22 +131,22 @@ def macho_tree_checks(
                 directories = [
                     directory
                     for rpath in rpaths
-                    for directory in macho.rpath_directories(rpath, image, install, executables)
+                    for directory in macho_paths.rpath_directories(rpath, image, install, executables)
                 ]
                 candidates = [
                     (directory / suffix).resolve()
                     for directory in directories
                     if directory is not None and directory.is_dir()
                 ]
-                if not any(macho.path_inside_root(candidate, install) and candidate.is_file() for candidate in candidates):
+                if not any(macho_paths.path_inside_root(candidate, install) and candidate.is_file() for candidate in candidates):
                     buckets["macho-unresolved-deps"].append(f"{name} -> {dependency}")
             elif dependency.startswith(("@loader_path/", "@executable_path/")) or dependency in ("@loader_path", "@executable_path"):
-                resolved = macho.resolve_image_path(dependency, image, install)
+                resolved = macho_paths.resolve_image_path(dependency, image, install)
                 if resolved is None:
                     buckets["macho-deps"].append(f"{name} -> {dependency}")
                 elif not resolved.is_file():
                     buckets["macho-unresolved-deps"].append(f"{name} -> {dependency}")
-            elif macho.system_load_path(dependency):
+            elif macho_paths.system_load_path(dependency):
                 continue
             else:
                 buckets["macho-deps"].append(f"{name} -> {dependency}")
@@ -159,11 +161,9 @@ def macho_tree_checks(
 
 
 def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
-    from buildsys import elf
-
     install = install.resolve()
     required = (install / "bin" / "node",)
-    images = elf.find_elifs(install)
+    images = elf.find_elfs(install)
     findings: list[ProductFinding] = [
         ProductFinding("elf-image-count", bool(images), f"{len(images)} images"),
     ]
@@ -174,8 +174,7 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
         )
     )
     buckets: dict[str, list[str]] = {
-        "elf-arch": [], "elf-pie": [], "elf-interp": [], "elf-deps": [],
-        "elf-rpaths": [], "elf-relro": [], "elf-bind-now": [], "elf-stack-nx": [],
+        "elf-arch": [], "elf-interp": [], "elf-deps": [], "elf-rpaths": [], "elf-hardening": [],
     }
     for image in images:
         name = str(image.relative_to(install))
@@ -184,26 +183,21 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
             deps = elf.dependencies(image)
             rpaths = elf.rpaths(image)
             interp = elf.interpreter(image)
+            hardening = elf.hardening_violations(image)
         except elf.ELFError as error:
             buckets["elf-arch"].append(f"{name}: {error}")
             continue
         if header.arch != machine or not header.is_64:
             buckets["elf-arch"].append(f"{name}: {header.arch}")
-        if not header.pie:
-            buckets["elf-pie"].append(f"{name}: {header.kind}")
-        if (image in required or name == "bin/node") and interp != elf.EXPECTED_INTERP_X86_64:
+        if (image in required or name == "bin/node") and interp != elf_policy.EXPECTED_INTERP_X86_64:
             buckets["elf-interp"].append(f"{name}: {interp}")
         for dependency in deps:
-            if not elf.allowed_dependency(dependency):
+            if not elf_policy.allowed_dependency(dependency):
                 buckets["elf-deps"].append(f"{name} -> {dependency}")
         if rpaths:
             buckets["elf-rpaths"].append(f"{name}: {rpaths}")
-        if not elf.has_relro(image):
-            buckets["elf-relro"].append(name)
-        if not elf.has_bind_now(image):
-            buckets["elf-bind-now"].append(name)
-        if not elf.stack_nx(image):
-            buckets["elf-stack-nx"].append(name)
+        for problem in hardening:
+            buckets["elf-hardening"].append(f"{name}: {problem}")
     for bucket, entries in buckets.items():
         findings.append(
             ProductFinding(bucket, not entries, "; ".join(entries[:5]) if entries else "ok")
