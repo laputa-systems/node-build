@@ -1,5 +1,10 @@
 # Reproduce the build
 
+`bootstrap.lock.json` pins the build toolchain: the macOS sections pin the Apple toolchain,
+the `linux_*` sections pin the Alpine musl toolchain, and `doctor` verifies the section
+matching the requested target family. `sources.lock.json` pins every upstream input by
+SHA-256 and size; downloaded bytes are verified before use.
+
 Run the locked chain for either triple (`doctor` refuses a toolchain that
 does not match `bootstrap.lock.json`; `fetch` verifies downloaded bytes
 against `sources.lock.json` before caching; compilation uses only verified

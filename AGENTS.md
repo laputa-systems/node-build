@@ -7,6 +7,16 @@ relocatable, PIE-hardened installations for `aarch64-apple-darwin` and
 ## Commands
 
 ```text
+make fetch|doctor|build|package|verify|repro TARGET=<triple>
+make controller-test
+make lint
+make clean
+```
+
+`build` fetches, compiles, and packages one target; `verify` qualifies the archive and checks
+its size budgets. The steps are also available directly:
+
+```text
 python3 build.py doctor
 python3 build.py fetch --target <triple>
 python3 build.py build --target <triple>
@@ -14,14 +24,14 @@ python3 build.py qualify --target <triple>
 python3 build.py package --target <triple>
 python3 build.py reproduce --target <triple>
 python3 build.py compare-reference --target <triple>
-python3 build.py assemble --tag YYYYMMDD --repo owner/name
-python3 build.py published-smoke --target <triple> --tag YYYYMMDD
+python3 build.py assemble
+python3 build.py published-smoke --target <triple>
 python3 build.py check-budgets --target <triple>
 python3 build.py controller-test
 ```
 
-`assemble` defaults to all supported triples and refuses dirty checkouts,
-tag collisions, and unqualified archives. Acquisition (`fetch`) may use the
+`assemble` defaults to all supported triples and refuses dirty checkouts
+and unqualified archives. Acquisition (`fetch`) may use the
 network; compilation runs from verified cached inputs only.
 
 ## Invariants
@@ -35,11 +45,11 @@ as scope. Do not push unless asked.
 `buildsys/targets.py` owns the supported set. `buildsys/product.py` owns
 archive and metadata naming. `buildsys/recipes.py` owns the per-target
 configure recipe and rejects banned flags (`-march=native`, `-ffast-math`,
-`--fully-static`, `--enable-thin-lto`). Locks verify bytes before use.
+`--fully-static`, `--enable-thin-lto`). Locks verify bytes before use. Every lock file carries `schema_version` 1; `sources.lock.json` records the upstream inputs, `bootstrap.lock.json` the toolchain `doctor` checks, and `release-budgets.json` the per-target size ceilings.
 
 ## Map
 
-- `docs/RELEASE.md` — prerelease pipeline, tag rules, asset layout, `dl` hook.
+- `docs/RELEASE.md` — release workflow, `release-<sha>` tag, asset layout, `dl` hook.
 - `docs/SECURITY.md` — hardening gates and threat-model limits.
 - `docs/REPRODUCE.md` — locked builds, reference revisions, reproduction.
 - `docs/COMPATIBILITY.md` — inclusions, deliberate differences, runtime floors.

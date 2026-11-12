@@ -43,4 +43,8 @@ macOS first qualified artifact: 44,023,851 bytes compressed, 179,704,746
 bytes installed payload (dominated by the 118 MB binary). Linux first
 qualified artifact: 55,278,558 bytes compressed, 190,965,048 bytes
 installed payload (dominated by the 129.8 MB binary). Ceilings live in
-`release-budgets.json` with ~28% headroom and are enforced in CI.
+`release-budgets.json` (keyed by target under `targets`) with ~28% headroom and are enforced
+in CI. The ceilings were measured from the first qualified macOS build on 2026-10-26, with
+headroom for upstream patch variance. CI fails when a ceiling is exceeded; a human reviews
+whether the growth is justified. The measured sizes above are for the earlier gzip archives;
+re-measure with the `.tar.xz` archive when tightening the ceilings.

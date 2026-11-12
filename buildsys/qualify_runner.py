@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from buildsys import inputs, relocate, smoke, validate_product
-from buildsys.product import NODE_VERSION, local_archive_name
+from buildsys.product import NODE_VERSION, archive_name
 
 
 class QualifyError(Exception):
@@ -20,7 +20,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
     from buildsys.targets import target_for_triple
 
     wanted = target_for_triple(triple)
-    archive = repo_root / "dist" / triple / local_archive_name(NODE_VERSION, triple, 1)
+    archive = repo_root / "dist" / triple / archive_name(NODE_VERSION, triple)
     if not archive.is_file():
         raise QualifyError(f"no packaged archive; run package first: {archive}")
     work = qualify_dir(repo_root, triple)

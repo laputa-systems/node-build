@@ -6,13 +6,13 @@ Lean, relocatable Node.js 26.12.1 distributions: Apple Silicon macOS
 
 ## Get it
 
-Download a dated prerelease from GitHub (`node-26.12.1+YYYYMMDD`, marked
-prerelease).
+Download a prerelease from GitHub (tag `release-<commit sha>`, marked
+prerelease). Each target has an archive, a manifest, and a shared `SHA256SUMS`.
 
 ## Run it
 
 ```sh
-tar -xzf node-26.12.1+YYYYMMDD-<triple>-install_only_stripped.tar.gz
+tar -xJf node-26.12.1-<triple>.tar.xz
 PATH="$PWD/node/bin:$PATH" node --version
 ```
 

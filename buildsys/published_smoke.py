@@ -1,41 +1,28 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
 from buildsys import inputs, smoke
-from buildsys.product import NODE_VERSION, release_archive_name
+from buildsys.product import NODE_VERSION, RELEASE_DIRNAME, archive_name, manifest_name
 
 
 class PublishedSmokeError(Exception):
     pass
 
 
-def _expected_entry(metadata: dict, triple: str) -> dict:
-    targets = metadata.get("targets")
-    if isinstance(targets, dict) and triple in targets:
-        entry = targets[triple]
-        if isinstance(entry, dict) and "sha256" in entry:
-            return entry
-    if metadata.get("target") == triple and "sha256" in metadata:
-        return metadata
-    raise PublishedSmokeError(
-        f"smoke-metadata has no entry for {triple}: {sorted(targets or {})}"
-    )
-
-
-def published_smoke(repo_root: Path, triple: str, tag: str) -> dict:
-    release_dir = repo_root / "dist" / tag
-    metadata_path = release_dir / "smoke-metadata.json"
-    if not release_dir.is_dir() or not metadata_path.is_file():
-        raise PublishedSmokeError(f"no assembled release: {release_dir}")
-    metadata = inputs.load_json(metadata_path)
-    entry = _expected_entry(metadata, triple)
-    archive = release_dir / release_archive_name(NODE_VERSION, tag, triple)
+def published_smoke(repo_root: Path, triple: str) -> dict:
+    release_dir = repo_root / "dist" / RELEASE_DIRNAME
+    manifest_path = release_dir / manifest_name(NODE_VERSION, triple)
+    if not release_dir.is_dir() or not manifest_path.is_file():
+        raise PublishedSmokeError(f"no assembled release for {triple}: {release_dir}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    archive = release_dir / archive_name(NODE_VERSION, triple)
     if not archive.is_file():
         raise PublishedSmokeError(f"release has no archive for {triple}: {archive.name}")
-    if inputs.sha256_of_file(archive) != entry["sha256"]:
-        raise PublishedSmokeError(f"archive bytes do not match smoke-metadata: {archive.name}")
+    if inputs.sha256_of_file(archive) != manifest.get("sha256"):
+        raise PublishedSmokeError(f"archive bytes do not match manifest: {archive.name}")
     work = repo_root / "build" / triple / "published-smoke"
     if work.exists():
         shutil.rmtree(work)
@@ -50,7 +37,7 @@ def published_smoke(repo_root: Path, triple: str, tag: str) -> dict:
         smoke_work, repo_root / "tests" / "fixtures", triple,
     )
     record = {
-        "release": tag,
+        "release": RELEASE_DIRNAME,
         "archive": archive.name,
         "smoke": [
             {"name": finding.name, "ok": finding.ok, "detail": finding.detail}

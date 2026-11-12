@@ -1,5 +1,6 @@
 {
-  "budgets": {
+  "schema_version": 1,
+  "targets": {
     "aarch64-apple-darwin": {
       "compressed_max_bytes": 56000000,
       "installed_payload_max_bytes": 230000000,
@@ -18,6 +19,5 @@
       "measured_sha256": "4334c39af53281aed9a5e1b7b235a0df70d28698acce97d389f08707beb691ee",
       "rationale": "First genuinely qualified Linux release. Single 130 MB musl PIE binary plus headers and LICENSE dominate the payload; headroom covers minor upstream size drift without hiding a linking regression."
     }
-  },
-  "comment": "Compressed/installed size ceilings. First ceilings measured from the qualified macos release 2026-10-26 with ~27% headroom for upstream patch variance. CI fails on exceed; a human reviews whether the growth is justified."
+  }
 }

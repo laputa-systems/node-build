@@ -97,7 +97,7 @@ def create_archive(install_root: Path, archive: Path) -> Path:
     archive.parent.mkdir(parents=True, exist_ok=True)
     if archive.exists():
         raise PackageError(f"refusing to overwrite existing archive: {archive}")
-    with tarfile.open(archive, "w:gz", format=tarfile.PAX_FORMAT) as tar:
+    with tarfile.open(archive, "w:xz", format=tarfile.PAX_FORMAT) as tar:
         tar.add(install_root, arcname=product.INSTALL_DIRNAME, recursive=True)
     digest = hashlib.sha256()
     with open(archive, "rb") as handle:
@@ -128,7 +128,7 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
         [str(source).encode()],
     )
     validate_product.gate(findings)
-    archive_name = product.local_archive_name(product.NODE_VERSION, triple, 1)
+    archive_name = product.archive_name(product.NODE_VERSION, triple)
     archive = create_archive(install_root, repo_root / "dist" / triple / archive_name)
     result = {
         "archive": str(archive),

@@ -108,12 +108,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
                 continue
             except inputs.VerificationError as error:
                 print(f"stale cache, refetching: {error}")
-        print(f"fetching: {entry['url']}")
-        try:
-            inputs.fetch_url(entry["url"], destination, entry["sha256"], entry["size"])
-        except (OSError, inputs.VerificationError) as error:
-            return _fail(str(error))
-        print(f"cached: {destination} (verified)")
+        failure = ""
+        for url in inputs.entry_urls(entry):
+            print(f"fetching: {url}")
+            try:
+                inputs.fetch_url(url, destination, entry["sha256"], entry["size"])
+            except (OSError, inputs.VerificationError) as error:
+                failure = str(error)
+                continue
+            print(f"cached: {destination} (verified)")
+            break
+        else:
+            return _fail(failure)
     return 0
 
 
@@ -130,10 +136,6 @@ def build_parser() -> argparse.ArgumentParser:
             child.add_argument("--target", default=None)
         if name in ("build", "reproduce"):
             child.add_argument("--jobs", type=int, default=10)
-        if name in ("assemble", "published-smoke"):
-            child.add_argument("--tag", required=True)
-        if name == "assemble":
-            child.add_argument("--repo", required=True)
         if name == "compare-reference":
             child.add_argument("--reference", default=None)
     return parser
@@ -211,10 +213,10 @@ def main(argv: list[str] | None = None) -> int:
             if not triples:
                 return _fail("no --target given")
         try:
-            result = release_assembler.assemble_all(REPO_ROOT, triples, args.tag, args.repo)
+            result = release_assembler.assemble_all(REPO_ROOT, triples)
         except release_assembler.AssemblyError as error:
             return _fail(str(error))
-        print(f"release: {result['release_title']} -> {result['release_dir']}")
+        print(f"release: {result['release_dir']}")
         print(f"targets: {', '.join(result['targets'])}")
         print(f"assets: {', '.join(result['assets'])}")
         return 0
@@ -222,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.target is None:
             args.target = resolve_target(None)
         try:
-            record = published_smoke_runner.published_smoke(REPO_ROOT, args.target, args.tag)
+            record = published_smoke_runner.published_smoke(REPO_ROOT, args.target)
         except published_smoke_runner.PublishedSmokeError as error:
             return _fail(str(error))
         print(f"published smoke: {record['passed']}/{record['total']} passed")
