@@ -3,7 +3,7 @@ from __future__ import annotations
 import tarfile
 from pathlib import Path
 
-from buildsys import inputs
+from buildlib import locks
 
 
 class BudgetError(Exception):
@@ -20,10 +20,10 @@ def archive_payload_bytes(archive: Path) -> tuple[int, int]:
 def check_budgets(repo_root: Path, triple: str) -> dict:
     from buildsys.product import NODE_VERSION, archive_name
 
-    budgets = inputs.load_json(repo_root / "release-budgets.json").get("targets", {})
-    if triple not in budgets:
-        raise BudgetError(f"no budget recorded for {triple}")
-    budget = budgets[triple]
+    try:
+        budget = locks.load_budgets(repo_root / "release-budgets.json").for_target(triple)
+    except locks.LockError as error:
+        raise BudgetError(str(error)) from error
     archive = repo_root / "dist" / triple / archive_name(NODE_VERSION, triple)
     if not archive.is_file():
         raise BudgetError(f"missing archive: {archive}")

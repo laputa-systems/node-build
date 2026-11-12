@@ -1,39 +1,34 @@
 from __future__ import annotations
 
-import platform
+import dataclasses
 from dataclasses import dataclass
 
+from buildlib import targets as shared
 
-class UnsupportedTargetError(Exception):
-    pass
+UnsupportedTargetError = shared.UnsupportedTargetError
 
 
-@dataclass(frozen=True)
-class Target:
-    triple: str
-    machine: str
-    family: str
+@dataclass(frozen=True, kw_only=True)
+class Target(shared.Target):
     cpu_baseline_cflag: str
     deployment_target: str
-    executable_format: str
 
 
-DARWIN_ARM64 = Target(
-    triple="aarch64-apple-darwin",
-    machine="arm64",
-    family="macos",
-    cpu_baseline_cflag="-mcpu=apple-m1",
-    deployment_target="26.0",
-    executable_format="mach-o",
+def _extend(triple: str, *, cpu_baseline_cflag: str, deployment_target: str) -> Target:
+    base = shared.TARGETS[triple]
+    return Target(
+        **{field.name: getattr(base, field.name) for field in dataclasses.fields(base)},
+        cpu_baseline_cflag=cpu_baseline_cflag,
+        deployment_target=deployment_target,
+    )
+
+
+DARWIN_ARM64 = _extend(
+    "aarch64-apple-darwin", cpu_baseline_cflag="-mcpu=apple-m1", deployment_target="26.0"
 )
 
-LINUX_X64_MUSL = Target(
-    triple="x86_64-unknown-linux-musl",
-    machine="x86_64",
-    family="linux",
-    cpu_baseline_cflag="-march=x86-64-v2",
-    deployment_target="1.2.6",
-    executable_format="elf",
+LINUX_X64_MUSL = _extend(
+    "x86_64-unknown-linux-musl", cpu_baseline_cflag="-march=x86-64-v2", deployment_target="1.2.6"
 )
 
 TARGETS: dict[str, Target] = {
@@ -43,16 +38,14 @@ TARGETS: dict[str, Target] = {
 
 SUPPORTED_TRIPLES = tuple(sorted(TARGETS))
 
-_LINUX_TRIPLES = (
-    "aarch64-unknown-linux-musl",
-)
+_PARKED_TRIPLES = ("aarch64-unknown-linux-musl",)
 
 
 def target_for_triple(triple: str) -> Target:
     try:
         return TARGETS[triple]
     except KeyError:
-        if triple in _LINUX_TRIPLES:
+        if triple in _PARKED_TRIPLES:
             raise UnsupportedTargetError(
                 f"target deferred, not implemented in this campaign: {triple} "
                 "(linux arm64 is parked; see plan Non-goals)"
@@ -63,13 +56,4 @@ def target_for_triple(triple: str) -> Target:
 
 
 def native_target() -> Target:
-    machine = platform.machine()
-    system = platform.system()
-    if system == "Darwin" and machine == "arm64":
-        return DARWIN_ARM64
-    if system == "Linux" and machine == "x86_64":
-        return LINUX_X64_MUSL
-    raise UnsupportedTargetError(
-        f"this machine ({machine} {system}) has no target description; "
-        f"supported: {SUPPORTED_TRIPLES}"
-    )
+    return target_for_triple(shared.native_target().triple)

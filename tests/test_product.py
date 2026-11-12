@@ -6,7 +6,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from buildsys import macho, relocate, validate_product
+from buildlib import macho
+
+from buildsys import macho_paths, relocate, validate_product
 from buildsys import package as packager
 
 
@@ -103,10 +105,10 @@ class MachOTest(unittest.TestCase):
         )
 
     def test_system_load_path(self):
-        self.assertTrue(macho.system_load_path("/usr/lib/libc++.1.dylib"))
-        self.assertTrue(macho.system_load_path("/System/Library/Frameworks/CoreFoundation.framework"))
-        self.assertFalse(macho.system_load_path("/opt/local/lib/libx.dylib"))
-        self.assertFalse(macho.system_load_path("/usr/lib/"))
+        self.assertTrue(macho_paths.system_load_path("/usr/lib/libc++.1.dylib"))
+        self.assertTrue(macho_paths.system_load_path("/System/Library/Frameworks/CoreFoundation.framework"))
+        self.assertFalse(macho_paths.system_load_path("/opt/local/lib/libx.dylib"))
+        self.assertFalse(macho_paths.system_load_path("/usr/lib/"))
 
 
 class RelocateTest(unittest.TestCase):
@@ -165,6 +167,32 @@ class GateTest(unittest.TestCase):
         finally:
             archive.unlink(missing_ok=True)
             root.rmdir()
+
+    def test_archive_is_deterministic_under_node_prefix(self):
+        import os
+        import shutil
+        import tarfile
+        import time
+
+        root = REPO_ROOT / ".work" / "tmp" / "det-root"
+        (root / "bin").mkdir(parents=True, exist_ok=True)
+        (root / "bin" / "node").write_bytes(b"binary")
+        (root / "bin" / "node").chmod(0o755)
+        (root / "LICENSE").write_text("license", encoding="utf-8")
+        first = REPO_ROOT / ".work" / "tmp" / "det-first.tar.xz"
+        second = REPO_ROOT / ".work" / "tmp" / "det-second.tar.xz"
+        try:
+            packager.create_archive(root, first)
+            os.utime(root / "LICENSE", (time.time() + 3600, time.time() + 3600))
+            packager.create_archive(root, second)
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+            with tarfile.open(first) as tar:
+                names = [member.name for member in tar.getmembers()]
+            self.assertEqual(names, ["node", "node/LICENSE", "node/bin", "node/bin/node"])
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+            first.unlink(missing_ok=True)
+            second.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

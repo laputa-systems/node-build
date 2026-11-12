@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import hashlib
+import os
 import shutil
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
-from buildsys import inputs, macho, product, validate_product
+from buildlib import elf, hashing, macho, release
+
+from buildsys import inputs, product, validate_product
 from buildsys.node import configure_env as node_configure_env
 
 
@@ -61,9 +62,7 @@ def write_hardening_report(
     install_root: Path, machine: str, deployment_target: str, destination: Path
 ) -> dict:
     if machine == "x86_64":
-        from buildsys import elf
-
-        images = elf.find_elifs(install_root)
+        images = elf.find_elfs(install_root)
         record = {
             "images": {
                 str(image.relative_to(install_root)): elf.inspect(image) for image in images
@@ -94,16 +93,10 @@ def write_hardening_report(
 
 
 def create_archive(install_root: Path, archive: Path) -> Path:
-    archive.parent.mkdir(parents=True, exist_ok=True)
     if archive.exists():
         raise PackageError(f"refusing to overwrite existing archive: {archive}")
-    with tarfile.open(archive, "w:xz", format=tarfile.PAX_FORMAT) as tar:
-        tar.add(install_root, arcname=product.INSTALL_DIRNAME, recursive=True)
-    digest = hashlib.sha256()
-    with open(archive, "rb") as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    return archive
+    mtime = int(os.environ.get("SOURCE_DATE_EPOCH", "0"))
+    return release.create_archive(install_root, archive, mtime=mtime, prefix=product.INSTALL_DIRNAME)
 
 
 def package(repo_root: Path, triple: str, source: Path) -> dict:
@@ -132,7 +125,7 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     archive = create_archive(install_root, repo_root / "dist" / triple / archive_name)
     result = {
         "archive": str(archive),
-        "sha256": inputs.sha256_of_file(archive),
+        "sha256": hashing.sha256_file(archive),
         "size": archive.stat().st_size,
         "pruned": removed,
         "hardening": report,

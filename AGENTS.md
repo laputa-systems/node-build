@@ -36,13 +36,15 @@ network; compilation runs from verified cached inputs only.
 
 ## Invariants
 
-No third-party Python dependencies in the controller. No floating tags or
-unpinned downloads in a reproducible path. Every shipped claim is proven by a
+The controller's only Python dependency is `laputa-buildlib`, pinned in `pyproject.toml`/`uv.lock` for
+`uv run` and in `sources.lock.json` for plain `python3`: `buildsys/__init__.py` puts the verified wheel
+from `build/cache` on `sys.path` (downloading it once if absent) when `buildlib` is not installed.
+No floating tags or unpinned downloads in a reproducible path. Every shipped claim is proven by a
 test that fails when the claim is wrong. Worktrees and scratch live under
 `.work/`, never `/tmp`. Commits use Conventional Commit format with the area
 as scope. Do not push unless asked.
 
-`buildsys/targets.py` owns the supported set. `buildsys/product.py` owns
+`buildsys/targets.py` owns the supported set, layered on `buildlib.targets`. `buildsys/product.py` owns
 archive and metadata naming. `buildsys/recipes.py` owns the per-target
 configure recipe and rejects banned flags (`-march=native`, `-ffast-math`,
 `--fully-static`, `--enable-thin-lto`). Locks verify bytes before use. Every lock file carries `schema_version` 1; `sources.lock.json` records the upstream inputs, `bootstrap.lock.json` the toolchain `doctor` checks, and `release-budgets.json` the per-target size ceilings.

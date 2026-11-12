@@ -4,6 +4,8 @@ import json
 import shutil
 from pathlib import Path
 
+from buildlib import hashing
+
 from buildsys import inputs, smoke
 from buildsys.product import NODE_VERSION, RELEASE_DIRNAME, archive_name, manifest_name
 
@@ -21,7 +23,7 @@ def published_smoke(repo_root: Path, triple: str) -> dict:
     archive = release_dir / archive_name(NODE_VERSION, triple)
     if not archive.is_file():
         raise PublishedSmokeError(f"release has no archive for {triple}: {archive.name}")
-    if inputs.sha256_of_file(archive) != manifest.get("sha256"):
+    if hashing.sha256_file(archive) != manifest.get("sha256"):
         raise PublishedSmokeError(f"archive bytes do not match manifest: {archive.name}")
     work = repo_root / "build" / triple / "published-smoke"
     if work.exists():

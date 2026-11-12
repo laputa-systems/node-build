@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from buildlib import locks
+
 from buildsys import inputs, recipes
 from buildsys.product import NODE_VERSION
 
@@ -58,13 +60,28 @@ def apply_product_patches(source: Path) -> list[str]:
     return applied
 
 
+def cached_source(repo_root: Path, entry: locks.Input) -> Path:
+    return repo_root / "build" / "cache" / f"{entry.name}-{entry.version}.tar.gz"
+
+
+def fetch_sources(repo_root: Path) -> list[Path]:
+    try:
+        lock = locks.load_sources(repo_root / "sources.lock.json")
+        return [
+            locks.fetch_input(item, cached_source(repo_root, item))
+            for item in lock.inputs
+            if item.role == "source"
+        ]
+    except (locks.LockError, locks.FetchError) as error:
+        raise BuildError(str(error)) from error
+
+
 def ensure_extracted(repo_root: Path, triple: str) -> Path:
-    lock = inputs.load_lock(repo_root / "sources.lock.json")
-    entry = inputs.lock_entry(lock, "node")
-    archive = repo_root / "build" / "cache" / f"node-{entry['version']}.tar.gz"
+    entry = locks.load_sources(repo_root / "sources.lock.json").get("node")
+    archive = cached_source(repo_root, entry)
     if not archive.exists():
         raise BuildError(f"missing cached source; run fetch first: {archive}")
-    inputs.verify_file(archive, entry["sha256"], entry["size"])
+    locks.verify_file(archive, entry)
     target = source_dir(repo_root)
     marker = target / "configure"
     if not marker.exists():
@@ -136,13 +153,27 @@ def built_node(source: Path) -> Path:
     return candidate
 
 
+def source_record(item: locks.Input) -> dict:
+    record = {
+        "name": item.name,
+        "version": item.version,
+        "url": item.url,
+        "sha256": item.sha256,
+        "size": item.size,
+        "role": item.role,
+        "license": item.license,
+        "purpose": item.purpose,
+    }
+    return {key: value for key, value in record.items() if value is not None}
+
+
 def write_receipt(repo_root: Path, triple: str, recipe: dict, extra: dict) -> Path:
     from buildsys.targets import target_for_triple
 
     wanted = target_for_triple(triple)
-    source_lock = inputs.load_lock(repo_root / "sources.lock.json")
-    toolchain_lock = inputs.load_json(repo_root / "bootstrap.lock.json")
-    if wanted.family == "linux":
+    source = locks.load_sources(repo_root / "sources.lock.json").get("node")
+    toolchain_lock = locks.load_bootstrap(repo_root / "bootstrap.lock.json")
+    if wanted.is_linux:
         toolchain_section = toolchain_lock["linux_toolchain"]
         baseline_section = toolchain_lock["linux_baseline"]
         effective_env = {
@@ -160,7 +191,7 @@ def write_receipt(repo_root: Path, triple: str, recipe: dict, extra: dict) -> Pa
     receipt = {
         "node_version": NODE_VERSION,
         "target": triple,
-        "source": inputs.lock_entry(source_lock, "node"),
+        "source": source_record(source),
         "toolchain": toolchain_section,
         "cpu_baseline": baseline_section,
         "recipe": recipe,

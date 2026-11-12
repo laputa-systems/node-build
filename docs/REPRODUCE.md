@@ -20,12 +20,12 @@ python3 build.py build --target <triple>
 
 - Design conventions: `../python-build` at `cde895aee64148cbee11adf5ad57c2fcb1d04941`
   (`main`, 2026-10-25).
-- Hardening machinery: `buildsys/macho.py` parser, signature checks, and
-  dependency resolution follow `../python-build` at
+- Hardening machinery: the Mach-O parser and signature checks (now
+  `buildlib.macho`) and the dependency resolution in `buildsys/macho_paths.py` follow `../python-build` at
   `5227de3f57d0f93b49b09c3559c4a2b01e9df5e`
   (`fix(hardening): enforce final binary protections`, 2026-10-25).
   Install-name edit helpers were deliberately not carried over: this product
-  ships no private dylibs. `buildsys/elf.py` is original to this repo — a
+  ships no private dylibs. The ELF parser (now `buildlib.elf`) is original to this repo — a
   dependency-free ELF64 parser implementing the same gate categories
   (PIE, arch, interpreter/dependency closure, RELRO, BIND_NOW, NX) for
   musl targets.
@@ -51,10 +51,11 @@ python3 build.py reproduce --target <triple>
 Builds twice from clean trees and compares raw and normalized bytes (macOS:
 UUID and code-signature ranges zeroed; Linux: `NT_GNU_BUILD_ID` zeroed).
 The verdict covers the `node` binary: two clean Linux rebuilds linked
-bit-for-bit identical binaries (129,786,392 bytes, 2026-10-26). Tarball
-bytes are not covered — header-file mtimes shift the archive by tens of
-bytes between reinstalls — so a rebuilt archive gets a fresh SHA-256 and
-must re-pass package + qualify. The verdict distinguishes bit-for-bit
+bit-for-bit identical binaries (129,786,392 bytes, 2026-10-26). Archives are written by `buildlib.release.create_archive` with sorted
+entries, root ownership, normalized modes, and `SOURCE_DATE_EPOCH` (0 when
+unset) as every mtime, so identical install trees give identical archive
+bytes; the verdict still covers only the `node` binary, and a rebuilt
+archive must re-pass package + qualify. The verdict distinguishes bit-for-bit
 reproducibility, content identity outside signing metadata, and genuine
 divergence. Writes `build/<triple>/reproduce-record.json`. A mismatch is
 reported, never hidden.

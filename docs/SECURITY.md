@@ -3,7 +3,7 @@
 ## Hardening enforced by the release gate (macOS)
 
 Every shipped Mach-O image is scanned from its own headers and load commands
-(`buildsys/macho.py`, categories in `buildsys/validate_product.py`):
+(`buildlib.macho`, categories in `buildsys/validate_product.py`):
 
 - Exactly one arm64 slice; fat/universal images rejected.
 - Every executable is `MH_EXECUTE` with `MH_PIE`.
@@ -24,16 +24,17 @@ malformed headers, bad rpaths) prove the validator fails when it should.
 ## Hardening enforced by the release gate (Linux)
 
 Every shipped ELF image is scanned from its own ELF header, program
-headers, and dynamic section (`buildsys/elf.py`, no external tools):
+headers, and dynamic section (`buildlib.elf`, no external tools):
 
 - Exactly one 64-bit little-endian x86-64 image; 32-bit files rejected.
 - Every executable is `ET_DYN` (PIE); `ET_EXEC` non-PIE rejected.
 - Interpreter is exactly `/lib/ld-musl-x86_64.so.1`.
 - Every `DT_NEEDED` entry is in the allowlist
-  (`ALLOWED_NEEDED` in `buildsys/elf.py`); absolute paths and `..`
+  (`ALLOWED_NEEDED` in `buildsys/elf_policy.py`); absolute paths and `..`
   escapes rejected. No `DT_RPATH`/`DT_RUNPATH` may be present.
-- `PT_GNU_RELRO` present, `DF_BIND_NOW`/`DF_1_NOW` set, `PT_GNU_STACK`
-  non-executable.
+- `buildlib.elf.hardening_violations` is empty: `PT_GNU_RELRO` present,
+  `DF_BIND_NOW`/`DF_1_NOW` set, `PT_GNU_STACK` non-executable, and no
+  writable-and-executable `PT_LOAD` segment.
 - Same presence/absence and path-leak rules as macOS above.
 
 Negative fixtures (non-PIE, wrong arch, bad interpreter, bad dependency,
@@ -53,5 +54,6 @@ validator fails when it should.
 - Trust anchors are the locked source hashes, the verified toolchain, and
   the sealed build receipt — not reproducible-bit-equality, which is
   measured and reported but not claimed.
-- Network access exists only in acquisition (`fetch`); compilation runs
-  from verified cached inputs.
+- Network access exists only in acquisition (`fetch`) and the one-time
+  download of the pinned `laputa-buildlib` wheel into `build/cache`;
+  compilation runs from verified cached inputs.
