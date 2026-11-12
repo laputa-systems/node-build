@@ -33,22 +33,6 @@ def git_dirty(repo_root: Path) -> bool:
     return bool(completed.stdout.strip())
 
 
-def tag_target(tag: str, repo_root: Path) -> str | None:
-    completed = subprocess.run(
-        ["git", "rev-parse", f"refs/tags/{tag}"], cwd=repo_root,
-        capture_output=True, text=True, timeout=60, check=False,
-    )
-    if completed.returncode != 0:
-        return None
-    return completed.stdout.strip()
-
-
-def check_tag(tag: str, revision: str, repo_root: Path) -> None:
-    existing = tag_target(tag, repo_root)
-    if existing is not None and existing != revision:
-        raise AssemblyError(f"tag {tag} already points at {existing}, not {revision}")
-
-
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
@@ -69,7 +53,7 @@ def all_checks_ok(entries: list[dict]) -> bool:
 
 
 def validate_triple(repo_root: Path, triple: str, revision: str) -> dict:
-    archive_name = product.local_archive_name(product.NODE_VERSION, triple, 1)
+    archive_name = product.archive_name(product.NODE_VERSION, triple)
     archive = repo_root / "dist" / triple / archive_name
     if not archive.is_file():
         raise AssemblyError(f"missing packaged archive: {archive}")
@@ -95,25 +79,24 @@ def validate_triple(repo_root: Path, triple: str, revision: str) -> dict:
 
 
 def stage_triple(
-    validated: dict, triple: str, tag: str, release_dir: Path, base_url: str,
-    title: str, revision: str,
-) -> dict:
+    validated: dict, triple: str, release_dir: Path, revision: str, lock_sha256: str,
+) -> None:
     archive = validated["archive"]
     package_record = validated["package_record"]
     build_receipt = validated["build_receipt"]
     qualify_record = validated["qualify_record"]
-    release_name = product.release_archive_name(product.NODE_VERSION, tag, triple)
-    release_archive = release_dir / release_name
+    release_archive = release_dir / product.archive_name(product.NODE_VERSION, triple)
     shutil.copyfile(archive, release_archive)
-    archive_sha = sha256_file(release_archive)
-    artifact_manifest = {
+    manifest = {
+        "schema_version": product.MANIFEST_SCHEMA_VERSION,
+        "product": product.PRODUCT,
         "version": product.NODE_VERSION,
         "target": triple,
-        "release_title": title,
-        "archive": release_name,
-        "sha256": archive_sha,
-        "size": release_archive.stat().st_size,
         "source_revision": revision,
+        "sources_lock_sha256": lock_sha256,
+        "archive": release_archive.name,
+        "sha256": sha256_file(release_archive),
+        "size": release_archive.stat().st_size,
         "source": build_receipt.get("source", {}),
         "toolchain": build_receipt.get("toolchain", {}),
         "recipe": build_receipt.get("recipe", {}),
@@ -125,19 +108,16 @@ def stage_triple(
             "relocation": qualify_record["relocation"],
         },
     }
-    inputs.render_json(artifact_manifest, release_dir / product.release_manifest_name(triple))
-    return {"archive": release_name, "sha256": archive_sha, "url": f"{base_url}/{release_name}"}
+    inputs.render_json(manifest, release_dir / product.manifest_name(product.NODE_VERSION, triple))
 
 
-def assemble(repo_root: Path, triple: str, tag: str, github_repo: str) -> dict:
-    return assemble_all(repo_root, (triple,), tag, github_repo)
+def assemble(repo_root: Path, triple: str) -> dict:
+    return assemble_all(repo_root, (triple,))
 
 
-def assemble_all(repo_root: Path, triples: tuple[str, ...], tag: str, github_repo: str) -> dict:
+def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> dict:
     from buildsys.targets import target_for_triple
 
-    if "/" not in github_repo:
-        raise AssemblyError(f"--repo must be owner/name, got {github_repo!r}")
     for triple in triples:
         target_for_triple(triple)
     if not triples:
@@ -145,73 +125,26 @@ def assemble_all(repo_root: Path, triples: tuple[str, ...], tag: str, github_rep
     revision = git_revision(repo_root)
     if git_dirty(repo_root):
         raise AssemblyError("refusing to assemble from a dirty checkout; commit first")
-    check_tag(tag, revision, repo_root)
 
     validated = {triple: validate_triple(repo_root, triple, revision) for triple in triples}
-    title = product.release_title(product.NODE_VERSION, tag)
-    base_url = f"https://github.com/{github_repo}/releases/download/{title}"
+    lock_sha256 = sha256_file(repo_root / "sources.lock.json")
     staging = repo_root / "build" / "assembly-tmp"
     if staging.exists():
         shutil.rmtree(staging)
-    release_dir = staging
-    release_dir.mkdir(parents=True)
-    entries: dict[str, dict] = {}
+    staging.mkdir(parents=True)
     for triple in triples:
-        entries[triple] = stage_triple(
-            validated[triple], triple, tag, release_dir, base_url, title, revision,
-        )
-    inputs.render_json(
-        {
-            "version": product.NODE_VERSION,
-            "targets": {
-                triple: {
-                    "version": product.NODE_VERSION,
-                    "target": triple,
-                    "url": entries[triple]["url"],
-                    "sha256": entries[triple]["sha256"],
-                }
-                for triple in triples
-            },
-        },
-        release_dir / product.DOWNLOAD_METADATA_NAME,
-    )
-    inputs.render_json(
-        {
-            "version": product.NODE_VERSION,
-            "targets": {
-                triple: {
-                    "version": product.NODE_VERSION,
-                    "target": triple,
-                    "url": f"file://{release_dir / entries[triple]['archive']}",
-                    "sha256": entries[triple]["sha256"],
-                }
-                for triple in triples
-            },
-        },
-        release_dir / product.SMOKE_METADATA_NAME,
-    )
-    inputs.render_json(
-        {
-            "release_title": title,
-            "tag": tag,
-            "source_revision": revision,
-            "targets": sorted(triples),
-            "assets": sorted(path.name for path in release_dir.iterdir()),
-        },
-        release_dir / product.ASSEMBLY_MANIFEST_NAME,
-    )
+        stage_triple(validated[triple], triple, staging, revision, lock_sha256)
     checksums = "".join(
-        f"{sha256_file(path)}  {path.name}\n" for path in sorted(release_dir.iterdir())
+        f"{sha256_file(path)}  {path.name}\n" for path in sorted(staging.iterdir())
     )
-    (release_dir / product.CHECKSUMS_NAME).write_text(checksums, encoding="utf-8")
+    (staging / product.CHECKSUMS_NAME).write_text(checksums, encoding="utf-8")
 
-    final_dir = repo_root / "dist" / tag
+    final_dir = repo_root / "dist" / product.RELEASE_DIRNAME
     if final_dir.exists():
         raise AssemblyError(f"refusing to overwrite existing release directory: {final_dir}")
     staging.rename(final_dir)
     return {
         "release_dir": str(final_dir),
-        "release_title": title,
         "targets": sorted(triples),
         "assets": sorted(path.name for path in final_dir.iterdir()),
     }

@@ -395,8 +395,8 @@ def run_suite(
     findings: list[SmokeFinding] = []
     for name, check in CHECKS:
         try:
-            if name == "arch":
-                detail = check(node, work, fixtures, triple)
+            if check is check_arch:
+                detail = check_arch(node, work, fixtures, triple)
             else:
                 detail = check(node, work, fixtures)
             findings.append(SmokeFinding(name, True, detail))

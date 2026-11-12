@@ -6,6 +6,8 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
+SCHEMA_VERSION = 1
+
 
 class VerificationError(Exception):
     pass
@@ -63,13 +65,22 @@ def load_lock(path: Path) -> dict:
         data = json.load(handle)
     if not isinstance(data, dict) or "inputs" not in data:
         raise VerificationError(f"{path}: lock must be an object with an 'inputs' list")
+    check_schema_version(path, data)
     if not isinstance(data["inputs"], list):
         raise VerificationError(f"{path}: lock 'inputs' must be a list")
     for entry in data["inputs"]:
-        for key in ("name", "version", "url", "sha256", "size", "role"):
+        for key in ("name", "version", "sha256", "size", "role"):
             if key not in entry:
                 raise VerificationError(f"{path}: lock entry missing {key!r}: {entry}")
+        if "url" not in entry and "urls" not in entry:
+            raise VerificationError(f"{path}: lock entry needs 'url' or 'urls': {entry}")
     return data
+
+
+def check_schema_version(path: Path, data: dict) -> None:
+    version = data.get("schema_version")
+    if type(version) is not int or version != SCHEMA_VERSION:
+        raise VerificationError(f"{path}: schema_version must be {SCHEMA_VERSION}, got {version!r}")
 
 
 def load_json(path: Path) -> dict:
@@ -77,7 +88,14 @@ def load_json(path: Path) -> dict:
         data = json.load(handle)
     if not isinstance(data, dict):
         raise VerificationError(f"{path}: lock must be a JSON object")
+    check_schema_version(path, data)
     return data
+
+
+def entry_urls(entry: dict) -> list[str]:
+    if "url" in entry:
+        return [entry["url"]]
+    return list(entry["urls"])
 
 
 def lock_entry(lock: dict, name: str) -> dict:

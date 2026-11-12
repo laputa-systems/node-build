@@ -18,13 +18,13 @@ def archive_payload_bytes(archive: Path) -> tuple[int, int]:
 
 
 def check_budgets(repo_root: Path, triple: str) -> dict:
-    from buildsys.product import NODE_VERSION, local_archive_name
+    from buildsys.product import NODE_VERSION, archive_name
 
-    budgets = inputs.load_json(repo_root / "release-budgets.json").get("budgets", {})
+    budgets = inputs.load_json(repo_root / "release-budgets.json").get("targets", {})
     if triple not in budgets:
         raise BudgetError(f"no budget recorded for {triple}")
     budget = budgets[triple]
-    archive = repo_root / "dist" / triple / local_archive_name(NODE_VERSION, triple, 1)
+    archive = repo_root / "dist" / triple / archive_name(NODE_VERSION, triple)
     if not archive.is_file():
         raise BudgetError(f"missing archive: {archive}")
     compressed, payload = archive_payload_bytes(archive)

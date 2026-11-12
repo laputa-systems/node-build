@@ -33,44 +33,30 @@ class TargetTest(unittest.TestCase):
 
 
 class ProductTest(unittest.TestCase):
-    def test_local_archive_name(self):
+    def test_archive_and_manifest_names(self):
         self.assertEqual(
-            product.local_archive_name("26.12.1", "aarch64-apple-darwin", 1),
-            "node-26.12.1-aarch64-apple-darwin-r1.tar.gz",
+            product.archive_name("26.12.1", "aarch64-apple-darwin"),
+            "node-26.12.1-aarch64-apple-darwin.tar.xz",
+        )
+        self.assertEqual(
+            product.manifest_name("26.12.1", "x86_64-unknown-linux-musl"),
+            "node-26.12.1-x86_64-unknown-linux-musl.manifest.json",
         )
 
-    def test_release_title_and_assets(self):
-        self.assertEqual(product.release_title("26.12.1", "20261025"), "node-26.12.1+20261025")
+    def test_release_assets_are_sorted_and_checksummed(self):
         assets = product.expected_release_assets(
-            "26.12.1", "20261025", ("aarch64-apple-darwin",)
+            "26.12.1", ("x86_64-unknown-linux-musl", "aarch64-apple-darwin")
         )
-        self.assertIn(
-            "node-26.12.1+20261025-aarch64-apple-darwin-install_only_stripped.tar.gz", assets
-        )
-        self.assertIn("artifact-aarch64-apple-darwin.json", assets)
-        self.assertIn("assembly.json", assets)
-        self.assertIn("SHA256SUMS", assets)
-
-    def test_linux_archive_and_assets(self):
         self.assertEqual(
-            product.local_archive_name("26.12.1", "x86_64-unknown-linux-musl", 1),
-            "node-26.12.1-x86_64-unknown-linux-musl-r1.tar.gz",
-        )
-        assets = product.expected_release_assets(
-            "26.12.1", "20261025", ("x86_64-unknown-linux-musl",)
-        )
-        self.assertIn(
-            "node-26.12.1+20261025-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
             assets,
+            (
+                "SHA256SUMS",
+                "node-26.12.1-aarch64-apple-darwin.manifest.json",
+                "node-26.12.1-aarch64-apple-darwin.tar.xz",
+                "node-26.12.1-x86_64-unknown-linux-musl.manifest.json",
+                "node-26.12.1-x86_64-unknown-linux-musl.tar.xz",
+            ),
         )
-        self.assertIn("artifact-x86_64-unknown-linux-musl.json", assets)
-
-    def test_single_naming_source(self):
-        first = product.release_archive_name("26.12.1", "20261025", "aarch64-apple-darwin")
-        assets = product.expected_release_assets(
-            "26.12.1", "20261025", ("aarch64-apple-darwin",)
-        )
-        self.assertIn(first, assets)
 
 
 class InputsTest(unittest.TestCase):
@@ -79,6 +65,24 @@ class InputsTest(unittest.TestCase):
         entry = inputs.lock_entry(lock, "node")
         self.assertEqual(entry["version"], "26.12.1")
         self.assertEqual(len(entry["sha256"]), 64)
+
+    def test_lock_without_schema_version_rejected(self):
+        scratch = REPO_ROOT / ".work" / "tmp" / "no-schema.lock.json"
+        scratch.parent.mkdir(parents=True, exist_ok=True)
+        scratch.write_text('{"inputs": []}', encoding="utf-8")
+        try:
+            with self.assertRaises(inputs.VerificationError):
+                inputs.load_lock(scratch)
+        finally:
+            scratch.unlink(missing_ok=True)
+
+    def test_lock_files_use_schema_version_one(self):
+        for name in ("sources.lock.json", "bootstrap.lock.json", "release-budgets.json"):
+            data = inputs.load_json(REPO_ROOT / name)
+            self.assertEqual(data["schema_version"], 1, name)
+            self.assertNotIn("comment", data, name)
+        budgets = inputs.load_json(REPO_ROOT / "release-budgets.json")["targets"]
+        self.assertEqual(sorted(budgets), list(targets.SUPPORTED_TRIPLES))
 
     def test_lock_entry_missing(self):
         lock = inputs.load_lock(REPO_ROOT / "sources.lock.json")
