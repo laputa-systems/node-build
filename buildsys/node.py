@@ -134,21 +134,21 @@ def run_configure(source: Path, repo_root: Path, triple: str, recipe: dict) -> N
 
 def run_make(source: Path, recipe: dict, jobs: int, log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    # A TARGET=<triple> from our Makefile reaches Node's gyp sub-makes through MAKEFLAGS and overrides
+    # their per-target TARGET assignments, collapsing every target into one object directory.
+    env = configure_env(recipe)
+    for name in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES", "TARGET"):
+        env.pop(name, None)
     with open(log_path, "w", encoding="utf-8") as log:
-        # Node's generated makefiles let the js2c action start before its node_js2c tool links under -j.
-        for command in (
-            ["make", "-C", "out", "BUILDTYPE=Release", f"-j{jobs}", "node_js2c"],
+        process = subprocess.Popen(
             ["make", f"-j{jobs}"],
-        ):
-            process = subprocess.Popen(
-                command,
-                cwd=source, env=configure_env(recipe),
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            )
-            assert process.stdout is not None
-            log.writelines(process.stdout)
-            if process.wait() != 0:
-                raise BuildError(f"make failed; see {log_path}")
+            cwd=source, env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        assert process.stdout is not None
+        log.writelines(process.stdout)
+        if process.wait() != 0:
+            raise BuildError(f"make failed; see {log_path}")
 
 
 def built_node(source: Path) -> Path:
