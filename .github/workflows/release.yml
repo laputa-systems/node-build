@@ -219,7 +219,7 @@ jobs:
             --workdir /work \
             --env TARGET \
             "$ALPINE_AMD64" sh -ec '
-              apk add --no-cache python3=3.14.10-r1
+              apk add --no-cache python3=3.14.10-r1 g++=15.2.0-r5
               python3 build.py published-smoke --target "$TARGET"
             '
 
