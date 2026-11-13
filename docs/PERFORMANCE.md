@@ -39,12 +39,9 @@ host; candidate is the freshly packaged `bin/node`, 5 alternating runs.
 
 ## Size
 
-macOS first qualified artifact: 44,023,851 bytes compressed, 179,704,746
-bytes installed payload (dominated by the 118 MB binary). Linux first
-qualified artifact: 55,278,558 bytes compressed, 190,965,048 bytes
-installed payload (dominated by the 129.8 MB binary). Ceilings live in
-`release-budgets.json` (keyed by target under `targets`) with ~28% headroom and are enforced
-in CI. The ceilings were measured from the first qualified macOS build on 2026-10-26, with
-headroom for upstream patch variance. CI fails when a ceiling is exceeded; a human reviews
-whether the growth is justified. The measured sizes above are for the earlier gzip archives;
-re-measure with the `.tar.xz` archive when tightening the ceilings.
+The ceilings in `release-budgets.json` (keyed by target under `targets`) were measured from
+`release-934b31ca`, the first shared-format `.tar.xz` release, on 2026-11-13, with 15% headroom
+rounded up to the next megabyte. macOS: 22,133,348 bytes compressed and 179,809,306 bytes of
+installed payload. Linux: 28,388,152 bytes compressed and 182,331,192 bytes of installed payload.
+The single `node` binary dominates both payloads. CI fails when a ceiling is exceeded, and a
+human reviews whether the growth is justified.
