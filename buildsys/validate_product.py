@@ -187,7 +187,7 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
         except elf.ELFError as error:
             buckets["elf-arch"].append(f"{name}: {error}")
             continue
-        if header.arch != machine or not header.is_64:
+        if header.arch != machine:
             buckets["elf-arch"].append(f"{name}: {header.arch}")
         if (image in required or name == "bin/node") and interp != elf_policy.EXPECTED_INTERP_X86_64:
             buckets["elf-interp"].append(f"{name}: {interp}")

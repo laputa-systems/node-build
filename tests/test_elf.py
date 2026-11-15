@@ -115,7 +115,6 @@ class ELFParserTest(unittest.TestCase):
     def test_reads_pie_header(self):
         header = elf.read_header(self.probe())
         self.assertTrue(header.pie)
-        self.assertTrue(header.is_64)
         self.assertEqual(header.arch, "x86_64")
         self.assertEqual(header.kind, "pie-executable")
 
@@ -194,6 +193,17 @@ class ELFGateTest(unittest.TestCase):
         self.assertFalse(
             self.check_names(machine=elf.EM_AARCH64)["elf-arch"]
         )
+
+    def test_32bit_image_fails_arch(self):
+        root = write_tree()
+        node = root / "bin" / "node"
+        raw = bytearray(node.read_bytes())
+        raw[4] = 1
+        node.write_bytes(bytes(raw))
+        findings = validate_product.elf_tree_checks(root, "x86_64")
+        arch = next(finding for finding in findings if finding.name == "elf-arch")
+        self.assertFalse(arch.ok)
+        self.assertIn("bin/node", arch.detail)
 
     def test_bad_interpreter_fails(self):
         self.assertFalse(
