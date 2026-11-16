@@ -197,7 +197,14 @@ class PatchTest(unittest.TestCase):
                 self.assertEqual(len(first), len(patches))
                 self.assertTrue(all("applied patch" in item for item in first))
                 self.assertTrue(all("already applied" in item for item in node_driver.apply_product_patches(probe, triple)))
+                help_text = (probe / "lib/internal/main/print_help.js").read_text(encoding="utf-8")
+                self.assertEqual(help_text.count("Maintained by Joshua Li: https://github.com/laputa-systems/node-build"), 1)
+                if triple == "aarch64-apple-darwin":
+                    self.assertIn("'26.0'", (probe / "common.gypi").read_text(encoding="utf-8"))
                 target = probe / patches[0][0]
+                target.write_text("nothing relevant here\n", encoding="utf-8")
+                with self.assertRaises(node_driver.BuildError):
+                    node_driver.apply_product_patches(probe, triple)
                 target.write_text(patches[0][1] * 2, encoding="utf-8")
                 with self.assertRaises(node_driver.BuildError):
                     node_driver.apply_product_patches(probe, triple)

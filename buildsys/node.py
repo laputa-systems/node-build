@@ -61,7 +61,7 @@ HELP_PATCHES = (
 )
 
 
-def apply_product_patches(source: Path, triple: str = "aarch64-apple-darwin") -> list[str]:
+def apply_product_patches(source: Path, triple: str) -> list[str]:
     applied: list[str] = []
     for relative, old, new in HELP_PATCHES + (PRODUCT_PATCHES if triple == "aarch64-apple-darwin" else ()):
         target = source / relative
