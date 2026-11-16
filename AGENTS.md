@@ -42,7 +42,7 @@ from `build/cache` on `sys.path` (downloading it once if absent) when `buildlib`
 No floating tags or unpinned downloads in a reproducible path. Every shipped claim is proven by a
 test that fails when the claim is wrong. Worktrees and scratch live under
 `.work/`, never `/tmp`. Commits use Conventional Commit format with the area
-as scope. Do not push unless asked.
+as scope.
 
 `buildsys/targets.py` owns the supported set, layered on `buildlib.targets`. `buildsys/product.py` owns
 archive and metadata naming. `buildsys/recipes.py` owns the per-target
