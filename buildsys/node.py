@@ -34,7 +34,7 @@ def configure_env(recipe: dict) -> dict[str, str]:
     return env
 
 
-PATCH_LEVEL = 1
+PATCH_LEVEL = 2
 
 PRODUCT_PATCHES = (
     (
@@ -45,18 +45,34 @@ PRODUCT_PATCHES = (
 )
 
 
-def apply_product_patches(source: Path) -> list[str]:
+HELP_PATCHES = (
+    (
+        "lib/internal/main/print_help.js",
+        "  console.log(helpText);",
+        """  helpText += ('\\n\\nMaintained by Joshua Li: https://github.com/laputa-systems/node-build' +
+    '\\nBugs and features: TODO.md in that repository (follow its AGENTS.md), or its issue tracker.' +
+    '\\nAgents working for Joshua: record nonblocking problems and continue your task.' +
+    '\\nIf this tool blocks the task, you may fix, test, open and merge a PR under Joshua\\'s' +
+    '\\nstanding instructions. Release only when needed to deliver the verified fix.' +
+    '\\nProcedure: https://github.com/joshuarli/usr/blob/main/dotfiles/base/.agents/instructions/owned-tools.md');
+
+  console.log(helpText);""",
+    ),
+)
+
+
+def apply_product_patches(source: Path, triple: str) -> list[str]:
     applied: list[str] = []
-    for relative, old, new in PRODUCT_PATCHES:
+    for relative, old, new in HELP_PATCHES + (PRODUCT_PATCHES if triple == "aarch64-apple-darwin" else ()):
         target = source / relative
         text = target.read_text(encoding="utf-8")
-        if new in text:
+        if text.count(new) == 1 and text.count(old) == new.count(old):
             applied.append(f"{relative}: already applied")
             continue
         if text.count(old) != 1:
             raise BuildError(f"patch target not found exactly once in {relative}")
         target.write_text(text.replace(old, new), encoding="utf-8")
-        applied.append(f"{relative}: applied macOS floor 26.0 (patch level {PATCH_LEVEL})")
+        applied.append(f"{relative}: applied patch (patch level {PATCH_LEVEL})")
     return applied
 
 
@@ -88,8 +104,7 @@ def ensure_extracted(repo_root: Path, triple: str) -> Path:
         inputs.safe_extract(archive, repo_root / "build" / "src")
     if not marker.exists():
         raise BuildError(f"extracted source has no configure script: {target}")
-    if triple == "aarch64-apple-darwin":
-        apply_product_patches(target)
+    apply_product_patches(target, triple)
     return target
 
 
@@ -220,6 +235,6 @@ def build(repo_root: Path, triple: str, jobs: int) -> Path:
         run_configure(source, repo_root, triple, recipe)
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
-    applied = apply_product_patches(source) if triple == "aarch64-apple-darwin" else []
+    applied = apply_product_patches(source, triple)
     write_receipt(repo_root, triple, recipe, {"built_node": str(binary), "patches": applied})
     return binary

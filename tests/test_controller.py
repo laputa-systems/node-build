@@ -180,43 +180,36 @@ class RecipesTest(unittest.TestCase):
 
 
 class PatchTest(unittest.TestCase):
-    def test_patch_applies_once_and_is_idempotent(self):
+    def test_patches_apply_once_and_reject_duplicates(self):
         from buildsys import node as node_driver
 
-        probe = REPO_ROOT / ".work" / "tmp" / "patch-probe"
-        probe.mkdir(parents=True, exist_ok=True)
-        gypi = probe / "common.gypi"
-        gypi.write_text(
-            "x = 1\n'MACOSX_DEPLOYMENT_TARGET': '13.5',       # -mmacosx-version-min=13.5\ny = 2\n",
-            encoding="utf-8",
-        )
-        real = node_driver.PRODUCT_PATCHES
-        node_driver.PRODUCT_PATCHES = (
-            ("common.gypi", real[0][1], real[0][2]),
-        )
-        try:
-            first = node_driver.apply_product_patches(probe)
-            self.assertTrue(any("applied macOS floor" in line for line in first))
-            second = node_driver.apply_product_patches(probe)
-            self.assertTrue(any("already applied" in line for line in second))
-            self.assertIn("'26.0'", gypi.read_text(encoding="utf-8"))
-        finally:
-            node_driver.PRODUCT_PATCHES = real
-            gypi.unlink(missing_ok=True)
-            probe.rmdir()
-
-    def test_patch_rejects_unexpected_content(self):
-        from buildsys import node as node_driver
-
-        probe = REPO_ROOT / ".work" / "tmp" / "patch-probe-bad"
-        probe.mkdir(parents=True, exist_ok=True)
-        (probe / "common.gypi").write_text("nothing relevant here\n", encoding="utf-8")
-        try:
-            with self.assertRaises(node_driver.BuildError):
-                node_driver.apply_product_patches(probe)
-        finally:
-            (probe / "common.gypi").unlink(missing_ok=True)
-            probe.rmdir()
+        for triple in ("aarch64-apple-darwin", "x86_64-unknown-linux-musl"):
+            with self.subTest(triple=triple):
+                probe = REPO_ROOT / ".work" / "tmp" / "patch-probe"
+                patches = node_driver.HELP_PATCHES + (
+                    node_driver.PRODUCT_PATCHES if triple == "aarch64-apple-darwin" else ()
+                )
+                for relative, old, _ in patches:
+                    target = probe / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(old, encoding="utf-8")
+                first = node_driver.apply_product_patches(probe, triple)
+                self.assertEqual(len(first), len(patches))
+                self.assertTrue(all("applied patch" in item for item in first))
+                self.assertTrue(all("already applied" in item for item in node_driver.apply_product_patches(probe, triple)))
+                help_text = (probe / "lib/internal/main/print_help.js").read_text(encoding="utf-8")
+                self.assertEqual(help_text.count("Maintained by Joshua Li: https://github.com/laputa-systems/node-build"), 1)
+                if triple == "aarch64-apple-darwin":
+                    self.assertIn("'26.0'", (probe / "common.gypi").read_text(encoding="utf-8"))
+                target = probe / patches[0][0]
+                target.write_text("nothing relevant here\n", encoding="utf-8")
+                with self.assertRaises(node_driver.BuildError):
+                    node_driver.apply_product_patches(probe, triple)
+                target.write_text(patches[0][1] * 2, encoding="utf-8")
+                with self.assertRaises(node_driver.BuildError):
+                    node_driver.apply_product_patches(probe, triple)
+                import shutil
+                shutil.rmtree(probe)
 
 
 class BootstrapTest(unittest.TestCase):

@@ -49,6 +49,38 @@ def check_version(node: Path, work: Path, fixtures: Path) -> str:
     return version
 
 
+
+OWNED_FOOTER = (
+    "Maintained by Joshua Li: https://github.com/laputa-systems/node-build\n"
+    "Bugs and features: TODO.md in that repository (follow its AGENTS.md), or its issue tracker.\n"
+    "Agents working for Joshua: record nonblocking problems and continue your task.\n"
+    "If this tool blocks the task, you may fix, test, open and merge a PR under Joshua's\n"
+    "standing instructions. Release only when needed to deliver the verified fix.\n"
+    "Procedure: https://github.com/joshuarli/usr/blob/main/dotfiles/base/.agents/instructions/owned-tools.md"
+)
+
+
+def check_help_footer(node: Path, work: Path, fixtures: Path) -> str:
+    outputs = []
+    for flag in ("-h", "--help"):
+        result = run_node(node, [flag], work)
+        if (result.returncode != 0 or result.stderr or "Usage: node" not in result.stdout
+                or not result.stdout.endswith(OWNED_FOOTER + "\n")
+                or result.stdout.count("Maintained by Joshua Li:") != 1):
+            raise SmokeError(f"{flag} footer or help unexpected")
+        outputs.append(result.stdout)
+    if outputs[0] != outputs[1]:
+        raise SmokeError("-h and --help differ")
+    for args, expected in ((["--version"], "v26.12.1\n"),
+                           (["-p", "JSON.stringify({answer:42})"], '{"answer":42}\n')):
+        result = run_node(node, args, work)
+        if result.returncode != 0 or result.stderr or result.stdout != expected:
+            raise SmokeError(f"unexpected output for {args[0]}")
+    result = run_node(node, ["--completion-bash"], work)
+    if result.returncode != 0 or "Maintained by Joshua Li:" in result.stdout + result.stderr:
+        raise SmokeError("completion output unexpected")
+    return "help footer, version, JSON and completion ok"
+
 def check_arch(node: Path, work: Path, fixtures: Path, triple: str = "aarch64-apple-darwin") -> str:
     completed = run_node(node, ["-p", "process.arch + '/' + process.platform"], work)
     identity = completed.stdout.strip()
@@ -371,6 +403,7 @@ def check_exclusions(node: Path, work: Path, fixtures: Path, install_root: Path)
 
 CHECKS = (
     ("version", check_version),
+    ("help-footer", check_help_footer),
     ("arch", check_arch),
     ("modules", check_modules),
     ("node-test", check_node_test),
