@@ -46,14 +46,14 @@ validator fails when it should.
 - Signatures are ad-hoc on macOS: they prove integrity from packaging to
   install, not Apple notarization or a Developer ID chain. No
   hardened-runtime or notarization claim is made. The Linux binary carries
-  no signature; its integrity rests on the sealed-receipt chain below.
+  no signature; checksums detect byte changes, but do not authenticate an artifact.
 - The OpenSSL `__cstring` config block embeds an inert absolute build path
   (literal `$(BUILDTYPE)`, never resolvable). The official nodejs.org binary
   ships the identical pattern. It is reported as informational, not gated:
   it cannot influence loading, and all load paths are still gated.
-- Trust anchors are the locked source hashes, the verified toolchain, and
-  the sealed build receipt — not reproducible-bit-equality, which is
-  measured and reported but not claimed.
+- Locked source hashes and toolchain checks support builds, but assembly does not bind
+  its receipt to the checkout revision or lock hash (DSLP-6). Reproducible
+  bit equality is measured and reported, not claimed.
 - Network access exists only in acquisition (`fetch`) and the one-time
   download of the pinned `laputa-buildlib` wheel into `build/cache`;
   compilation runs from verified cached inputs.
