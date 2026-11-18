@@ -9,6 +9,20 @@ Ground (DSLP-1) passed at base `c63d32672583e134ed705396ef9951e437546e31`. The p
 
 Diagnose (DSLP-2) reviewed the first-party controller, artifact and provenance handoffs, docs, and sampled tests at `524ced8eda5ebbd7884d739a8cc5b58887d8ae75`. It filed two P2 findings, DSLP-6 and DSLP-7, with [sealed fixture reproductions](docs/DIAGNOSE.md). Pinned Alpine `make test` passed 74 tests including the musl host check; native `make lint` passed. The fixtures exercise local assembly. Native Node builds and the hosted release workflow remain separate checks. DSLP-3 through DSLP-5 remain open.
 
+
+Types (DSLP-3) validated the pinned buildlib wheel source record at
+`20884c2`. The bootstrap now checks URL, digest, and integer size before
+cache or network use. The old code accepted a boolean size as equal to one
+byte. A sealed fixture detected it, and the download fixture verified that
+a digest mismatch leaves existing cache bytes intact. The valid cache-hit
+fixture still passes. Tests passed all 76 cases in the pinned Alpine builder,
+including the musl host check. Ruff and ty passed on macOS.
+
+The strict probes fell from nine to seven unsound returns and from 33 to
+32 missing type arguments. The wheel bootstrap has zero findings under
+both probes. The wider rules remain unadopted while the bootstrap lock,
+build record, and smoke paths still have type gaps.
+
 ## Tickets
 
 ### DSLP-3 · P2 · Types: strict profile and typing findings

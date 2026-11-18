@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -109,6 +110,54 @@ class InputsTest(unittest.TestCase):
             wheel.parent.mkdir(parents=True)
             wheel.write_bytes(data)
             self.assertEqual(buildsys._pinned_wheel(root), wheel)
+
+    def test_malformed_wheel_pin_is_rejected_before_cache_or_network(self):
+        data = b"x"
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            entry = {
+                "name": "laputa-buildlib",
+                "url": "https://invalid.example/wheel.whl",
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size": True,
+            }
+            (root / "sources.lock.json").write_text(
+                json.dumps({"schema_version": 1, "inputs": [entry]}), encoding="utf-8"
+            )
+            wheel = root / "build" / "cache" / "wheel.whl"
+            wheel.parent.mkdir(parents=True)
+            wheel.write_bytes(data)
+            with (
+                patch("urllib.request.urlopen", side_effect=AssertionError("network used")),
+                self.assertRaisesRegex(ValueError, "invalid laputa-buildlib pin"),
+            ):
+                buildsys._pinned_wheel(root)
+
+    def test_wheel_fallback_verifies_download_before_replacing_cache(self):
+        data = b"verified wheel"
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            entry = {
+                "name": "laputa-buildlib",
+                "url": "https://invalid.example/wheel.whl",
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size": len(data),
+            }
+            (root / "sources.lock.json").write_text(
+                json.dumps({"schema_version": 1, "inputs": [entry]}), encoding="utf-8"
+            )
+            wheel = root / "build" / "cache" / "wheel.whl"
+            wheel.parent.mkdir(parents=True)
+            wheel.write_bytes(b"bad cache")
+            with (
+                patch("urllib.request.urlopen", return_value=io.BytesIO(b"bad download")),
+                self.assertRaisesRegex(RuntimeError, "bytes do not match"),
+            ):
+                buildsys._pinned_wheel(root)
+            self.assertEqual(wheel.read_bytes(), b"bad cache")
+            with patch("urllib.request.urlopen", return_value=io.BytesIO(data)):
+                self.assertEqual(buildsys._pinned_wheel(root), wheel)
+            self.assertEqual(wheel.read_bytes(), data)
 
     def test_safe_extract_rejects_escape(self):
         archive = REPO_ROOT / ".work" / "tmp" / "evil.tar"
