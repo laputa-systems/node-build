@@ -1,0 +1,37 @@
+name: Controller coverage trial
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  controller-coverage:
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: 0.13.7
+      - run: uv python install 3.15
+      - name: Measure the ordinary controller suite with coverage
+        shell: bash -euo pipefail {0}
+        run: |
+          export TMPDIR="$PWD/.work/tmp"
+          mkdir -p "$TMPDIR"
+          make coverage
+          uv run --frozen python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+          report = json.loads(Path(".work/coverage/report.json").read_text())
+          tracked = subprocess.check_output(
+              ["git", "ls-files", "build.py", "buildsys/*.py"], text=True
+          ).splitlines()
+          assert set(report["files"]) == set(tracked), sorted(report["files"])
+          print(len(tracked), "files", report["totals"])
+          PY
