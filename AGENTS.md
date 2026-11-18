@@ -37,7 +37,8 @@ network; compilation runs from verified cached inputs only.
 ## Verification
 
 - `make test` calls `make controller-test`. The pinned x86_64 Alpine release environment, with Git for fixture repositories, passed all 74 tests on both runs. Under local x86_64 emulation the runs took 0.81 s and 0.85 s after provisioning.
-- The hosted Ubuntu ARM64 test job exercises 73 cases and skips the host lock check, which requires musl on Linux. The pinned Alpine runs exercise that check.
+- `make coverage` runs the controller suite with branch instrumentation across the 21 first-party Python files and writes `.work/coverage/report.json`. Use the ordinary Ubuntu controller environment or a host that satisfies the local lock check.
+- The hosted Ubuntu ARM64 test job ran 76 cases and skipped the host lock check in the coverage trial, which requires musl on Linux. The pinned Alpine runs exercise that check.
 - `make lint` runs Ruff and ty. It passed in 0.67 s on the first macOS ARM64 run and 0.08 s warm.
 - `tests/test_controller.py` checks target selection, configure recipes, toolchain and source locks, input handling, and patch application. The macOS host probe requires the Xcode and SDK versions in `bootstrap.lock.json`.
 - `tests/test_release.py` checks assembly, checksums and clean-checkout requirements for the release workflow and `dl` consumer. The workflow checks built archives and published-asset layout.

@@ -37,6 +37,19 @@ left from 33, and the unused-ignore and ANN401 probes found no qualifying
 witness. The 77-test pinned Alpine suite, including the musl host check,
 passed. The local Xcode and Clang version probes also passed.
 
+
+Tests (DSLP-4) added `make coverage` for the ordinary controller suite.
+On hosted Ubuntu ARM64, coverage.py 7.17.3 measured all 21 tracked
+Python files, with 629 of 1,432 statements and 148 of 454 branches.
+The run reported 77 tests, including the expected glibc skip of the native
+musl host check. All 77 passed separately in pinned Alpine at the Types
+checkpoint. [Coverage run](https://github.com/laputa-systems/node-build/actions/runs/44297774733)
+
+The covered layers include pure parsing, locks and recipes, sealed controller
+fixtures, release assembly and artifact validation. Native builds and
+published artifact smoke have separate entry points. Direct CLI coverage
+and the mutation checks remain open.
+
 ## Tickets
 
 
