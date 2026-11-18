@@ -63,9 +63,10 @@ The mutation execution rates were 2.06 and 1.75 per second, respectively;
 both complete runs exited 0 under the 120-second cap. These are not a release
 gate or a whole-controller result.
 
-The nine remaining `validate_triple` survivors are open: 11, 23, 25, 33,
-35, 76, 78, and 80 change path case, which this filesystem does not distinguish
-but Linux does; 13 drops the missing-archive diagnostic. Other release and
+The independent missing-archive fixture then caught mutant 13, which removes
+its diagnostic. The remaining eight `validate_triple` identities (11, 23, 25,
+33, 35, 76, 78 and 80) alter path case and need case-sensitive verification.
+The complete 90-test suite passed on pinned Alpine. Other release and
 producer boundaries remain open. A hand-injected change from `is True` to
 `== True` in `all_checks_ok` made the new package-record subtest with
 `{"ok": 1}` fail because assembly did not reject it. The unmodified release

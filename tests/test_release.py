@@ -248,6 +248,14 @@ class AssembleTest(unittest.TestCase):
                         self.assertFalse((self.work / "build" / "assembly-tmp").exists())
                 path.write_text(original)
 
+    def test_reports_the_exact_missing_archive(self):
+        archive = self.work / "dist" / TRIPLE / product.archive_name(product.NODE_VERSION, TRIPLE)
+        archive.unlink()
+        with self.assertRaises(release_assembler.AssemblyError) as error:
+            release_assembler.assemble_all(self.work, (TRIPLE,))
+        self.assertEqual(str(error.exception), f"missing packaged archive: {archive}")
+        self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+
     def test_rejects_qualification_for_different_archive(self):
         path = self.work / "build" / TRIPLE / "qualify" / "qualify-record.json"
         record = json.loads(path.read_text())
