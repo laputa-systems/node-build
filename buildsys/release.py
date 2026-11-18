@@ -41,8 +41,10 @@ def load_record(path: Path, what: str) -> dict:
         return json.load(handle)
 
 
-def all_checks_ok(entries: list[dict]) -> bool:
-    return all(entry["ok"] for entry in entries)
+def all_checks_ok(entries: object) -> bool:
+    return isinstance(entries, list) and bool(entries) and all(
+        isinstance(entry, dict) and entry.get("ok") is True for entry in entries
+    )
 
 
 def validate_triple(repo_root: Path, triple: str, revision: str) -> dict:
@@ -58,8 +60,13 @@ def validate_triple(repo_root: Path, triple: str, revision: str) -> dict:
     if qualify_record.get("sha256") != hashing.sha256_file(archive):
         raise AssemblyError(f"qualify record does not match packaged archive bytes: {triple}")
     for section in ("product_checks", "smoke", "relocation"):
-        if not all_checks_ok(qualify_record[section]):
+        if not all_checks_ok(qualify_record.get(section)):
             raise AssemblyError(f"qualify section {section} is not all-ok: {triple}")
+    smoke_count = len(qualify_record["smoke"])
+    for field in ("smoke_passed", "smoke_total"):
+        recorded: object = qualify_record.get(field)
+        if type(recorded) is not int or recorded != smoke_count:
+            raise AssemblyError(f"qualify smoke counts disagree with {field}: {triple}")
     for entry in package_record.get("product_checks", []):
         if not entry["ok"]:
             raise AssemblyError(f"package product checks are not all-ok: {triple}")

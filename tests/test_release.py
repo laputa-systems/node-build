@@ -87,6 +87,23 @@ class AssembleTest(unittest.TestCase):
         self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
 
+    def test_rejects_incomplete_qualification_before_creating_release(self):
+        path = self.work / "build" / TRIPLE / "qualify" / "qualify-record.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        destination = self.work / "dist" / product.RELEASE_DIRNAME
+        cases = (
+            ({"product_checks": []}, "product_checks"),
+            ({"smoke": None}, "smoke"),
+            ({"relocation": [{"name": "c", "ok": "yes"}]}, "relocation"),
+            ({"smoke_passed": 0}, "smoke counts"),
+            ({"smoke_total": True}, "smoke counts"),
+        )
+        for changes, diagnostic in cases:
+            with self.subTest(changes=changes), self.assertRaisesRegex(release_assembler.AssemblyError, diagnostic):
+                path.write_text(json.dumps(record | changes), encoding="utf-8")
+                release_assembler.assemble_all(self.work, (TRIPLE,))
+            self.assertFalse(destination.exists())
+
     def test_refuses_dirty_checkout_and_existing_release(self):
         (self.work / "stray.txt").write_text("x", encoding="utf-8")
         with self.assertRaises(release_assembler.AssemblyError):

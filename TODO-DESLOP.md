@@ -50,6 +50,14 @@ fixtures, release assembly and artifact validation. Native builds and
 published artifact smoke have separate entry points. Direct CLI coverage
 and the mutation checks remain open.
 
+
+Release assembly now requires nonempty product, smoke, and relocation
+checks with explicit successful results. Smoke counts must match the
+recorded smoke entries. The sealed fixture exercises five incomplete
+records, including an empty list that created a release on the baseline.
+The candidate rejects them before creating the output directory. All 78
+tests passed in pinned Alpine, including the native musl host check.
+
 ## Tickets
 
 
@@ -83,14 +91,6 @@ and the mutation checks remain open.
 - **Effort:** M
 
 
-### DSLP-7 · P2 · Reject incomplete qualification records during assembly
-
-- **Area:** release qualification
-- **Where:** buildsys/release.py:42; buildsys/release.py:60; buildsys/qualify_runner.py:58
-- **Problem:** Assembly accepts empty product, smoke, and relocation lists because all() is true for empty lists, and accepts zero smoke checks as qualified. The benign fixture in docs/DIAGNOSE.md assembles and writes a manifest with no checks. The normal qualifier has not been shown to emit such a record.
-- **Recommendation:** Validate the qualification record's schema and required check coverage and counts before assembly, rejecting empty or incomplete records; exercise rejection with a sealed fixture.
-- **Fix with:** durable-state
-- **Effort:** M
 
 
 ### DSLP-8 · P3 · Qualify remaining generic return and input shapes
@@ -101,4 +101,3 @@ and the mutation checks remain open.
 - **Recommendation:** Work one producer and its consumers at a time, preserve the accepted JSON forms and add a negative witness where precise types reject an actual bad program.
 - **Fix with:** typing-audit
 - **Effort:** M
-
