@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import TypedDict
 
 from buildlib import hashing, release
 
@@ -13,6 +14,12 @@ from buildsys import product
 
 class AssemblyError(Exception):
     pass
+
+
+class AssemblyResult(TypedDict):
+    release_dir: str
+    targets: list[str]
+    assets: list[str]
 
 
 def _git_query(repo_root: Path, command: str, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -145,7 +152,7 @@ def stage_triple(
     release.write_manifest(release_dir, manifest)
 
 
-def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> dict:
+def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> AssemblyResult:
     from buildsys.targets import target_for_triple
 
     for triple in triples:
