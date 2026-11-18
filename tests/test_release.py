@@ -15,7 +15,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import hashing, release
 
-from buildsys import package, product, validate_product
+from buildsys import package, product, targets, validate_product
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
 
@@ -201,11 +201,14 @@ class AssembleTest(unittest.TestCase):
             ["git", "rev-parse", "HEAD"], cwd=self.work, env=env,
             capture_output=True, text=True, check=True,
         ).stdout.strip()
-        archive = self.work / "dist" / TRIPLE / product.archive_name(product.NODE_VERSION, TRIPLE)
+        self.write_qualified_fixture(TRIPLE)
+
+    def write_qualified_fixture(self, triple: str):
+        archive = self.work / "dist" / triple / product.archive_name(product.NODE_VERSION, triple)
         archive.parent.mkdir(parents=True)
         archive.write_bytes(b"archive bytes")
         checks = [{"name": "c", "ok": True, "detail": ""}]
-        build = self.work / "build" / TRIPLE
+        build = self.work / "build" / triple
         (build / "qualify").mkdir(parents=True)
         receipt = build / "build-receipt.json"
         receipt.write_text(
@@ -431,13 +434,70 @@ class AssembleTest(unittest.TestCase):
         release.verify_sha256sums(final_dir)
         self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
+    def test_assembly_lists_both_targets_and_all_checksum_assets(self):
+        secondary = "x86_64-unknown-linux-musl"
+        self.write_qualified_fixture(secondary)
+        result = release_assembler.assemble_all(self.work, (secondary, TRIPLE))
+        expected_dir = self.work / "dist" / product.RELEASE_DIRNAME
+        self.assertEqual(result, {
+            "release_dir": str(expected_dir), "targets": [TRIPLE, secondary],
+            "assets": list(product.expected_release_assets(product.NODE_VERSION, (TRIPLE, secondary))),
+        })
+        release.verify_sha256sums(expected_dir)
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
+
+    def test_assembly_rejects_empty_and_unsupported_targets_before_staging(self):
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "^no targets to assemble$"):
+            release_assembler.assemble_all(self.work, ())
+        with self.assertRaises(targets.UnsupportedTargetError):
+            release_assembler.assemble_all(self.work, (TRIPLE, "unsupported-target"))
+        self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
+
+    def test_rename_failure_clears_staging_and_leaves_no_release(self):
+        final = self.work / "dist" / product.RELEASE_DIRNAME
+        error = OSError("fixture rename failed")
+        with (
+            patch.object(Path, "rename", side_effect=error),
+            self.assertRaises(OSError) as raised,
+        ):
+            release_assembler.assemble_all(self.work, (TRIPLE,))
+        self.assertIs(raised.exception, error)
+        self.assertFalse(final.exists())
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
+
+    def test_rename_refuses_to_replace_a_release_published_during_staging(self):
+        final = self.work / "dist" / product.RELEASE_DIRNAME
+        existing = final / "existing-checksums.txt"
+        rename = Path.rename
+
+        def publish_first(staging: Path, destination: Path):
+            self.assertEqual(staging.parent, self.work / "build")
+            self.assertTrue(staging.name.startswith("assembly-tmp-"))
+            self.assertEqual(destination, final)
+            final.mkdir()
+            existing.write_bytes(b"existing checksums")
+            return rename(staging, destination)
+
+        with (
+            patch.object(Path, "rename", autospec=True, side_effect=publish_first),
+            self.assertRaisesRegex(
+                release_assembler.AssemblyError,
+                f"^refusing to overwrite existing release directory: {re.escape(str(final))}$",
+            ),
+        ):
+            release_assembler.assemble_all(self.work, (TRIPLE,))
+        self.assertEqual(existing.read_bytes(), b"existing checksums")
+        self.assertEqual(list(final.iterdir()), [existing])
+        self.assertEqual(list((self.work / "build").iterdir()), [self.work / "build" / TRIPLE])
+
     def test_refuses_dirty_checkout_and_existing_release(self):
         (self.work / "stray.txt").write_text("x", encoding="utf-8")
-        with self.assertRaises(release_assembler.AssemblyError):
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "^refusing to assemble from a dirty checkout; commit first$"):
             release_assembler.assemble_all(self.work, (TRIPLE,))
         (self.work / "stray.txt").unlink()
         release_assembler.assemble_all(self.work, (TRIPLE,))
-        with self.assertRaises(release_assembler.AssemblyError):
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "^refusing to overwrite existing release directory:"):
             release_assembler.assemble_all(self.work, (TRIPLE,))
 
 
