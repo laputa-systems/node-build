@@ -64,10 +64,12 @@ both complete runs exited 0 under the 120-second cap. These are not a release
 gate or a whole-controller result.
 
 The independent missing-archive fixture then caught mutant 13, which removes
-its diagnostic. The remaining eight `validate_triple` identities (11, 23, 25,
-33, 35, 76, 78 and 80) alter path case and need case-sensitive verification.
-The complete 90-test suite passed on pinned Alpine. Other release and
-producer boundaries remain open. A hand-injected change from `is True` to
+its diagnostic. The eight remaining `validate_triple` identities altered path
+case (11, 23, 25, 33, 35, 76, 78 and 80). The disposable case-sensitive Linux
+ARM64 trial at `1a45eb7` caught all 133 identities with no surviving or missing
+outcomes. The complete 90-test suite passed on pinned Alpine. Other release and
+producer boundaries remain open.
+[Hosted run](https://github.com/laputa-systems/node-build/actions/runs/44307096562) A hand-injected change from `is True` to
 `== True` in `all_checks_ok` made the new package-record subtest with
 `{"ok": 1}` fail because assembly did not reject it. The unmodified release
 suite passed 19 tests and `make lint` passed.
