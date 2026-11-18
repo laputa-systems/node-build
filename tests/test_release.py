@@ -21,6 +21,59 @@ WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
 TRIPLE = "aarch64-apple-darwin"
 
 
+class ReleaseInputTest(unittest.TestCase):
+    def setUp(self):
+        tmp_root = REPO_ROOT / ".work" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        self.scratch = tempfile.TemporaryDirectory(dir=tmp_root)
+        self.addCleanup(self.scratch.cleanup)
+        self.root = Path(self.scratch.name)
+
+    def test_record_reports_missing_invalid_and_non_object_inputs(self):
+        path = self.root / "record.json"
+        for label in ("build receipt", "package record"):
+            with self.subTest(label=label):
+                with self.assertRaises(release_assembler.AssemblyError) as error:
+                    release_assembler.load_record(path, label)
+                self.assertEqual(str(error.exception), f"missing {label}: {path} (run package/qualify first)")
+                path.write_text("{", encoding="utf-8")
+                with self.assertRaises(release_assembler.AssemblyError) as error:
+                    release_assembler.load_record(path, label)
+                self.assertTrue(str(error.exception).startswith(f"invalid {label}: {path}: "))
+                self.assertIsInstance(error.exception.__cause__, ValueError)
+                path.write_text("[]", encoding="utf-8")
+                with self.assertRaises(release_assembler.AssemblyError) as error:
+                    release_assembler.load_record(path, label)
+                self.assertEqual(str(error.exception), f"invalid {label}: {path}: expected an object")
+                path.unlink()
+        path.write_text('{"name": "café", "nested": {"ok": true}}', encoding="utf-8")
+        self.assertEqual(release_assembler.load_record(path, "record"), {"name": "café", "nested": {"ok": True}})
+
+    def test_checkout_revision_and_cleanliness_follow_real_git_state(self):
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "not a git checkout"):
+            release_assembler.git_revision(self.root)
+        self.assertIsNone(release_assembler.clean_build_revision(self.root))
+        env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+        (self.root / ".gitignore").write_text("ignored\n", encoding="utf-8")
+        for command in (["init", "-q"], ["add", "."], ["commit", "-qm", "initial"]):
+            subprocess.run(["git", *command], cwd=self.root, env=env, check=True)
+        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, env=env,
+                                  capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(release_assembler.git_revision(self.root), revision)
+        self.assertEqual(release_assembler.clean_build_revision(self.root), revision)
+        (self.root / "ignored").write_text("ignored")
+        self.assertEqual(release_assembler.clean_build_revision(self.root), revision)
+        child = self.root / "child"
+        child.mkdir()
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "not a git checkout root"):
+            release_assembler.git_revision(child)
+        (child / "untracked").write_text("dirty")
+        self.assertIsNone(release_assembler.clean_build_revision(self.root))
+        with patch.dict(os.environ, {"PATH": str(self.root)}):
+            self.assertIsNone(release_assembler.clean_build_revision(self.root))
+
+
 class PackageRecordTest(unittest.TestCase):
     def test_packaging_links_receipt_and_archive(self):
         tmp_root = REPO_ROOT / ".work" / "tmp"
