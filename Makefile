@@ -2,7 +2,7 @@ PYTHON ?= python3
 TARGET ?= aarch64-apple-darwin
 JOBS ?= 10
 
-.PHONY: build verify package repro controller-test fetch doctor clean lint
+.PHONY: test build verify package repro controller-test fetch doctor clean lint
 
 fetch:
 	$(PYTHON) build.py fetch --target $(TARGET)
@@ -34,3 +34,5 @@ clean:
 lint:
 	uv run --frozen ruff check build.py buildsys tests
 	uv run --frozen ty check build.py buildsys tests
+
+test: controller-test
