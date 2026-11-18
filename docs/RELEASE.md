@@ -19,7 +19,9 @@ Each supported triple produces:
 manifests and `SHA256SUMS` into `dist/release/`, and refuses dirty checkouts, unqualified
 archives, receipts missing or mismatching the current source lock, and an existing
 `dist/release/`. Older unbound receipts require a rebuild. The build checks that the
-source lock remains unchanged before writing its receipt.
+source lock remains unchanged before writing its receipt. An extracted source tree
+without a matching archive digest requires a clean build, even if the version
+is unchanged.
 
 ## Jobs
 

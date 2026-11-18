@@ -85,8 +85,9 @@ tests passed in pinned Alpine, including the native musl host check.
 
 The source-lock slice records the pre-build digest, rejects a lock changed during
 the build, and rejects stale or unbound receipts before assembly stages assets.
-The sealed fixture proves this lock binding; controller revision and package/archive
-binding remain open.
+A sealed pair of same-version tarballs also proves that the build rejects a
+previously extracted tree after its archive pin changes. Controller revision and
+package/archive binding remain open.
 
 - **Area:** release provenance
 - **Where:** buildsys/node.py:179; buildsys/release.py:46; buildsys/release.py:85

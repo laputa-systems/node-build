@@ -99,12 +99,18 @@ def ensure_extracted(repo_root: Path, triple: str) -> Path:
         raise BuildError(f"missing cached source; run fetch first: {archive}")
     locks.verify_file(archive, entry)
     target = source_dir(repo_root)
-    marker = target / "configure"
-    if not marker.exists():
+    configure = target / "configure"
+    archive_marker = target / ".node-build-source-sha256"
+    fresh = not target.exists()
+    if fresh:
         inputs.safe_extract(archive, repo_root / "build" / "src")
-    if not marker.exists():
+    elif not archive_marker.is_file() or archive_marker.read_bytes() != entry.sha256.encode("ascii"):
+        raise BuildError(f"extracted tree is not bound to the pinned source archive; use a clean build: {target}")
+    if not configure.is_file():
         raise BuildError(f"extracted source has no configure script: {target}")
     apply_product_patches(target, triple)
+    if fresh:
+        archive_marker.write_bytes(entry.sha256.encode("ascii"))
     return target
 
 

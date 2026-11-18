@@ -261,6 +261,39 @@ class PatchTest(unittest.TestCase):
                 shutil.rmtree(probe)
 
 
+class ExtractedSourceTest(unittest.TestCase):
+    def test_same_version_archive_change_rejects_the_existing_tree(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            triple = "aarch64-apple-darwin"
+            lock_path = root / "sources.lock.json"
+            lock = json.loads((REPO_ROOT / lock_path.name).read_text())
+            entry = lock["inputs"][0]
+            archive = root / "build" / "cache" / f"node-{entry['version']}.tar.gz"
+            archive.parent.mkdir(parents=True)
+            source = node.source_dir(root)
+
+            def pin_archive(payload: bytes) -> None:
+                with tarfile.open(archive, "w:gz") as tar:
+                    for relative, data in (
+                        ("configure", payload),
+                        *((name, old.encode()) for name, old, _ in node.HELP_PATCHES + node.PRODUCT_PATCHES),
+                    ):
+                        info = tarfile.TarInfo(f"{source.name}/{relative}")
+                        info.size = len(data)
+                        tar.addfile(info, io.BytesIO(data))
+                entry.update(sha256=hashlib.sha256(archive.read_bytes()).hexdigest(), size=archive.stat().st_size)
+                lock_path.write_text(json.dumps(lock))
+
+            pin_archive(b"old configure")
+            self.assertEqual(node.ensure_extracted(root, triple), source)
+            self.assertEqual(node.ensure_extracted(root, triple), source)
+            pin_archive(b"new configure")
+            with self.assertRaisesRegex(node.BuildError, "source archive.*clean build"):
+                node.ensure_extracted(root, triple)
+            self.assertEqual((source / "configure").read_bytes(), b"old configure")
+
+
 class BuildReceiptTest(unittest.TestCase):
     def test_build_binds_lock_and_rejects_changes_before_writing_receipt(self):
         import shutil
