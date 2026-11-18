@@ -336,6 +336,18 @@ uppercase `dist` and `release-budgets.json` on the case-insensitive
 macOS volume. The latter two remain distinguishable on a case-sensitive
 filesystem.
 
+Both uppercase changes failed the exact-ceiling fixture on an isolated
+case-sensitive Linux ARM64 filesystem with Python 3.14.10 and the
+Buildlib wheel verified against `uv.lock`. At `ff3448f` the unchanged
+case passes. Independently change `"dist"` to `"DIST"` or
+`"release-budgets.json"` to `"RELEASE-BUDGETS.JSON"` in
+`buildsys/budgets.py`. Run
+`python -B -m unittest tests.test_controller.ArchiveBudgetTest.test_archive_budget_accepts_exact_ceilings`
+after each change. The cases report a missing archive and an unreadable
+budget file respectively. All 81 outcomes in this scope are accounted
+for across the two filesystems, including the equivalent default
+tarfile mode.
+
 To reproduce, archive the revision into a disposable directory under
 `.work/tmp`. In that copy configure Mutmut with
 `source_paths = ["buildsys/"]`, `only_mutate = ["buildsys/budgets.py"]`
