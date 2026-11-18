@@ -117,6 +117,72 @@ class PackageRecordTest(unittest.TestCase):
             self.assertEqual(record["sha256"], hashing.sha256_file(archive))
 
 
+class StageTripleTest(unittest.TestCase):
+    def setUp(self):
+        tmp_root = REPO_ROOT / ".work" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        self.scratch = tempfile.TemporaryDirectory(dir=tmp_root)
+        self.addCleanup(self.scratch.cleanup)
+        self.root = Path(self.scratch.name)
+        self.archive = self.root / "input.tar.xz"
+        self.archive.write_bytes(b"sealed archive bytes")
+        self.staging = self.root / "staging"
+        self.staging.mkdir()
+        self.digest = hashing.sha256_file(self.archive)
+        self.validated = {
+            "archive": self.archive,
+            "package_record": {"sha256": self.digest, "hardening": {"pie": "enabled"}},
+            "build_receipt": {
+                "source": {"name": "upstream"}, "toolchain": {"compiler": "clang"},
+                "recipe": {"flags": ["release"]},
+            },
+            "qualify_record": {
+                "product_checks": [{"name": "identity", "ok": True}],
+                "smoke_passed": 2, "smoke_total": 3,
+                "relocation": [{"name": "move", "ok": True}],
+            },
+        }
+
+    def test_stages_archive_and_manifest_metadata(self):
+        release_assembler.stage_triple(self.validated, TRIPLE, self.staging, "a" * 40, "b" * 64)
+        archive_name = product.archive_name(product.NODE_VERSION, TRIPLE)
+        self.assertEqual((self.staging / archive_name).read_bytes(), b"sealed archive bytes")
+        manifest = json.loads((self.staging / product.manifest_name(product.NODE_VERSION, TRIPLE)).read_text())
+        self.assertEqual(manifest, {
+            "schema_version": 1, "product": "node", "version": product.NODE_VERSION,
+            "target": TRIPLE, "source_revision": "a" * 40, "sources_lock_sha256": "b" * 64,
+            "archive": archive_name, "sha256": self.digest, "size": 20,
+            "source": {"name": "upstream"}, "toolchain": {"compiler": "clang"},
+            "recipe": {"flags": ["release"]}, "hardening": {"pie": "enabled"},
+            "qualification": {
+                "product_checks": [{"name": "identity", "ok": True}],
+                "smoke_passed": 2, "smoke_total": 3,
+                "relocation": [{"name": "move", "ok": True}],
+            },
+        })
+
+    def test_missing_optional_metadata_is_empty(self):
+        self.validated["build_receipt"] = {}
+        self.validated["package_record"] = {"sha256": self.digest}
+        release_assembler.stage_triple(self.validated, TRIPLE, self.staging, "a" * 40, "b" * 64)
+        manifest = json.loads((self.staging / product.manifest_name(product.NODE_VERSION, TRIPLE)).read_text())
+        for field in ("source", "toolchain", "recipe", "hardening"):
+            self.assertEqual(manifest[field], {})
+
+    def test_rejects_changed_staged_bytes_before_writing_manifest(self):
+        self.validated["package_record"] = {"sha256": "0" * 64}
+        with self.assertRaises(release_assembler.AssemblyError) as error:
+            release_assembler.stage_triple(self.validated, TRIPLE, self.staging, "a" * 40, "b" * 64)
+        self.assertEqual(str(error.exception), f"packaged archive changed during staging: {TRIPLE}")
+        self.assertEqual([path.name for path in self.staging.iterdir()], [product.archive_name(product.NODE_VERSION, TRIPLE)])
+
+    def test_copy_error_propagates_without_manifest(self):
+        self.archive.unlink()
+        with self.assertRaises(FileNotFoundError):
+            release_assembler.stage_triple(self.validated, TRIPLE, self.staging, "a" * 40, "b" * 64)
+        self.assertEqual(list(self.staging.iterdir()), [])
+
+
 class AssembleTest(unittest.TestCase):
     def setUp(self):
         tmp_root = REPO_ROOT / ".work" / "tmp"

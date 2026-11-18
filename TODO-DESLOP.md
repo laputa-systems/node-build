@@ -168,6 +168,53 @@ test file, make the replacement above in that copy, and run
 `python -m pytest -q tests/test_release.py::ReleaseInputTest::test_checkout_revision_and_cleanliness_follow_real_git_state`.
 
 
+The staging slice at base `0650c30475497f734e2f8eec8b763b2ca03f9964`
+uses the real manifest writer and sealed local archives. It checks the copied
+bytes, all manifest metadata, absent optional metadata, and rejection of a
+staged digest mismatch. The concurrent assembly test remains separate. Two
+independent archived copies with identical candidate tests selected precisely
+`buildsys.release.x_stage_triple__mutmut_1` through `_101`. Both selected maps
+were identical: 101 killed and zero survived, no-tests, timeout, suspicious,
+skipped, type-check kills, interrupted, unviable, or uncompleted. Other
+functions were not selected; the 395 progress denominator is the whole file.
+No whole-module conclusion follows. Runs used macOS arm64, Python 3.15.2,
+mirrored mutmut 3.8.1 and pytest 9.2.0, one worker, `cpu-guard --cores 2`,
+and a 120-second cap each; both exited 0. The reported mutation rates were
+38.88 and 38.07 per second, not performance measurements.
+
+Hand faults in a third archived copy made the metadata test fail for a zero
+archive size, the optional metadata test fail for a `None` default, and the
+digest rejection test fail when its guard was disabled. Each pytest command
+exited 1. A skipped copy still passed the missing-source test because hashing
+the missing destination also raises `FileNotFoundError`; that test does not
+independently locate the failure at the copy operation. The separate successful
+archive-byte assertion catches a skipped copy on the valid path. The full
+release test file passed 28 tests and 38 subtests, and lint passed.
+
+Reproduce the selected runs from this base with the candidate test file:
+
+```sh
+mkdir -p .work/tmp
+uv venv --python 3.15 .work/venv
+uv pip install --python .work/venv/bin/python --index-url https://pypi.17166969.xyz/simple 'mutmut==3.8.1' 'pytest==9.2.0' 'laputa-buildlib==0.1.0'
+for d in final-one final-two; do
+  mkdir -p ".work/tmp/$d/.work/tmp"
+  git archive 0650c30475497f734e2f8eec8b763b2ca03f9964 | tar -x -C ".work/tmp/$d"
+  cp tests/test_release.py ".work/tmp/$d/tests/test_release.py"
+  printf '\n[tool.mutmut]\nsource_paths = ["buildsys/"]\nonly_mutate = ["buildsys/release.py"]\npytest_add_cli_args_test_selection = ["tests/test_release.py::StageTripleTest"]\nalso_copy = [".github/"]\n' >> ".work/tmp/$d/pyproject.toml"
+done
+for d in final-one final-two; do
+  (cd ".work/tmp/$d" && TMPDIR="$PWD/.work/tmp" timeout 120 cpu-guard --cores 2 -- ../../venv/bin/mutmut run --max-children 1 'buildsys.release.x_stage_triple__mutmut_*')
+done
+```
+
+Compare the selected `exit_code_by_key` entries in each
+`mutants/buildsys/release.py.meta`. The direct staging selection avoids the
+deliberate concurrency barrier inside each mutation iteration; the full release
+suite runs that barrier separately. Published artifacts and native builds were
+not tested in this slice.
+
+
 Release provenance (DSLP-6) closed after sealed checks exercised the
 checkout, build, package and assembly boundaries.
 The source-lock slice records the pre-build digest, rejects a lock changed during
