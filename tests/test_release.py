@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import re
@@ -15,6 +17,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import hashing, release
 
+import build
 from buildsys import package, product, targets, validate_product
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
@@ -265,6 +268,27 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(names, sorted(names))
         self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
+
+    def test_git_probe_timeout_stops_assembly_and_leaves_build_provenance_unbound(self):
+        run = subprocess.run
+        for command in ("rev-parse", "status"):
+            with self.subTest(command=command):
+                def run_with_timeout(args, *, timed_out_command=command, **kwargs):
+                    if args[:2] == ["git", timed_out_command]:
+                        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+                    return run(args, **kwargs)
+
+                stderr = io.StringIO()
+                with (
+                    patch.object(release_assembler.subprocess, "run", side_effect=run_with_timeout),
+                    patch.object(build, "REPO_ROOT", self.work),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    self.assertEqual(build.main(["assemble", "--target", TRIPLE]), 2)
+                    self.assertIsNone(release_assembler.clean_build_revision(self.work))
+                self.assertIn(f"git {command} timed out", stderr.getvalue())
+                self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+                self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
     def test_rejects_malformed_records_before_staging(self):
         build = self.work / "build" / TRIPLE

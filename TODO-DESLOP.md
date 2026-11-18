@@ -396,7 +396,19 @@ wheel recipe. Set `only_mutate = ["buildsys/release.py"]`,
 `also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", ".github"]`,
 and select `tests/test_release.py` and `buildsys.release.*`. Use Python
 3.15.2, mutmut 3.8.1 and pytest 9.2.0 with one mutation worker. The
-41 survivors still need dispositions under DSLP-4.
+seven target-validation path variants and the one assembly lockfile
+variant have the case-sensitive Linux controls documented above.
+The remaining 33 outcomes in the Git probes and record loader stay
+in DSLP-4.
+
+`git rev-parse` and `git status` have a bounded timeout. At `f10806e`
+both timeout controls escaped the assembly CLI as `TimeoutExpired`.
+Now either stops assembly with exit 2 and the Git subcommand in the
+diagnostic. No staging directory or new output is created. A normal
+build records no checkout revision if either query cannot finish,
+using the same fallback as for an unavailable checkout. Reproduce
+with `python -m unittest tests.test_release.AssembleTest.test_git_probe_timeout_stops_assembly_and_leaves_build_provenance_unbound`.
+All 33 release cases, Ruff and ty passed.
 
 ## Tickets
 

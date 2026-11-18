@@ -15,11 +15,18 @@ class AssemblyError(Exception):
     pass
 
 
+def _git_query(repo_root: Path, command: str, *arguments: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", command, *arguments], cwd=repo_root,
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise AssemblyError(f"git {command} timed out") from error
+
+
 def git_revision(repo_root: Path) -> str:
-    completed = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel", "HEAD"], cwd=repo_root,
-        capture_output=True, text=True, timeout=60, check=False,
-    )
+    completed = _git_query(repo_root, "rev-parse", "--show-toplevel", "HEAD")
     if completed.returncode != 0:
         raise AssemblyError("not a git checkout")
     checkout, revision = completed.stdout.rstrip("\n").rsplit("\n", 1)
@@ -29,10 +36,7 @@ def git_revision(repo_root: Path) -> str:
 
 
 def git_dirty(repo_root: Path) -> bool:
-    completed = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
-        cwd=repo_root, capture_output=True, text=True, timeout=60, check=False,
-    )
+    completed = _git_query(repo_root, "status", "--porcelain", "--untracked-files=all")
     if completed.returncode != 0:
         raise AssemblyError("git status failed")
     return bool(completed.stdout.strip())
