@@ -5,7 +5,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -235,7 +237,7 @@ class AssembleTest(unittest.TestCase):
                 with self.assertRaisesRegex(release_assembler.AssemblyError, message):
                     release_assembler.assemble_all(self.work, (TRIPLE,))
                 self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
-                self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+                self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
     def test_rejects_a_receipt_from_a_different_checkout_revision(self):
         (self.work / "controller.txt").write_text("another committed controller")
@@ -247,7 +249,7 @@ class AssembleTest(unittest.TestCase):
         with self.assertRaisesRegex(release_assembler.AssemblyError, "build receipt checkout revision.*rebuild"):
             release_assembler.assemble_all(self.work, (TRIPLE,))
         self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
-        self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
     def test_rejects_stale_or_unbound_lock_before_creating_release(self):
         lock = self.work / "sources.lock.json"
@@ -264,7 +266,7 @@ class AssembleTest(unittest.TestCase):
                 with self.assertRaisesRegex(release_assembler.AssemblyError, "source lock.*rebuild"):
                     release_assembler.assemble_all(self.work, (TRIPLE,))
                 self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
-                self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+                self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
     def test_rejects_incomplete_qualification_before_creating_release(self):
         path = self.work / "build" / TRIPLE / "qualify" / "qualify-record.json"
@@ -298,7 +300,7 @@ class AssembleTest(unittest.TestCase):
                         path.write_text(json.dumps(record | {section: checks}))
                         with self.assertRaisesRegex(release_assembler.AssemblyError, "not all-ok"):
                             release_assembler.assemble_all(self.work, (TRIPLE,))
-                        self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+                        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
                 path.write_text(original)
 
     def test_reports_the_exact_missing_archive(self):
@@ -307,7 +309,7 @@ class AssembleTest(unittest.TestCase):
         with self.assertRaises(release_assembler.AssemblyError) as error:
             release_assembler.assemble_all(self.work, (TRIPLE,))
         self.assertEqual(str(error.exception), f"missing packaged archive: {archive}")
-        self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
     def test_rejects_qualification_for_different_archive(self):
         path = self.work / "build" / TRIPLE / "qualify" / "qualify-record.json"
@@ -317,7 +319,50 @@ class AssembleTest(unittest.TestCase):
                 path.write_text(json.dumps(record | {"sha256": digest}))
                 with self.assertRaisesRegex(release_assembler.AssemblyError, "qualify record does not match"):
                     release_assembler.assemble_all(self.work, (TRIPLE,))
-                self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+                self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
+
+    def test_refuses_an_archive_changed_between_validation_and_copy(self):
+        archive = self.work / "dist" / TRIPLE / product.archive_name(product.NODE_VERSION, TRIPLE)
+        original = archive.read_bytes()
+        copyfile = release_assembler.shutil.copyfile
+
+        def replace_then_copy(source: Path, destination: Path):
+            self.assertEqual(source, archive)
+            archive.write_bytes(b"replacement after qualification")
+            return copyfile(source, destination)
+
+        with (
+            patch.object(release_assembler.shutil, "copyfile", side_effect=replace_then_copy),
+            self.assertRaisesRegex(release_assembler.AssemblyError, "packaged archive changed during staging"),
+        ):
+            release_assembler.assemble_all(self.work, (TRIPLE,))
+        self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
+        archive.write_bytes(original)
+        result = release_assembler.assemble_all(self.work, (TRIPLE,))
+        self.assertEqual((Path(result["release_dir"]) / archive.name).read_bytes(), original)
+
+    def test_concurrent_assemblers_only_publish_one_complete_release(self):
+        rendezvous = Barrier(2)
+        write_sums = release.write_sha256sums
+
+        def finish_staging(staging: Path):
+            write_sums(staging)
+            rendezvous.wait(timeout=10)
+
+        with (
+            patch.object(release, "write_sha256sums", side_effect=finish_staging),
+            ThreadPoolExecutor(max_workers=2) as workers,
+        ):
+            attempts = [workers.submit(release_assembler.assemble_all, self.work, (TRIPLE,)) for _ in range(2)]
+            failures = [attempt.exception(timeout=15) for attempt in attempts]
+        self.assertEqual(failures.count(None), 1)
+        refused = next(failure for failure in failures if failure is not None)
+        self.assertIsInstance(refused, release_assembler.AssemblyError)
+        self.assertIn("refusing to overwrite existing release directory", str(refused))
+        final_dir = self.work / "dist" / product.RELEASE_DIRNAME
+        release.verify_sha256sums(final_dir)
+        self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
 
     def test_refuses_dirty_checkout_and_existing_release(self):
         (self.work / "stray.txt").write_text("x", encoding="utf-8")
