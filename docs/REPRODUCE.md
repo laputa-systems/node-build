@@ -30,9 +30,9 @@ python3 build.py build --target <triple>
   (PIE, arch, interpreter/dependency closure, RELRO, BIND_NOW, NX) for
   musl targets.
 
-## Vendored-source patch (macOS only)
+## Vendored-source patches
 
-Node's `configure` ignores `MACOSX_DEPLOYMENT_TARGET`; the floor is
+The help footer patch applies on both targets. Node's `configure` ignores `MACOSX_DEPLOYMENT_TARGET`; the floor is
 hardcoded in `common.gypi`. One exact-match patch is applied at extraction
 (see `PRODUCT_PATCHES` in `buildsys/node.py`, patch level recorded in the
 build receipt):

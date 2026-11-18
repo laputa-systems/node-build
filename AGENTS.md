@@ -63,6 +63,7 @@ configure recipe and rejects banned flags (`-march=native`, `-ffast-math`,
 ## Map
 
 - `docs/RELEASE.md` — release workflow, `release-<sha>` tag, asset layout, `dl` hook.
+- `docs/DIAGNOSE.md` — assembly fixture reproductions.
 - `docs/SECURITY.md` — hardening gates and threat-model limits.
 - `docs/REPRODUCE.md` — locked builds, reference revisions, reproduction.
 - `docs/COMPATIBILITY.md` — inclusions, deliberate differences, runtime floors.
