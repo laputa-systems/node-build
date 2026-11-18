@@ -51,9 +51,9 @@ validator fails when it should.
   (literal `$(BUILDTYPE)`, never resolvable). The official nodejs.org binary
   ships the identical pattern. It is reported as informational, not gated:
   it cannot influence loading, and all load paths are still gated.
-- Locked source hashes and toolchain checks support builds, but assembly does not bind
-  its receipt to the checkout revision or lock hash (DSLP-6). Reproducible
-  bit equality is measured and reported, not claimed.
+- Assembly checks the build receipt against the checkout revision and source lock,
+  and checks the package and qualification records against the archive. The
+  reproducibility command measures bit equality in two rebuilds.
 - Network access exists only in acquisition (`fetch`) and the one-time
   download of the pinned `laputa-buildlib` wheel into `build/cache`;
   compilation runs from verified cached inputs.

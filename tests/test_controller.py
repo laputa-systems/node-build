@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -295,6 +296,42 @@ class ExtractedSourceTest(unittest.TestCase):
 
 
 class BuildReceiptTest(unittest.TestCase):
+    def test_build_receipt_records_only_an_unchanged_clean_checkout(self):
+        import shutil
+
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            for name in ("sources.lock.json", "bootstrap.lock.json"):
+                shutil.copyfile(REPO_ROOT / name, root / name)
+            (root / ".gitignore").write_text("build/\n")
+            for args in (["init", "-q"], ["add", "."], ["commit", "-qm", "fixture"]):
+                subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True)
+            revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            nested_archive = root / "build" / "source-archive"
+            nested_archive.mkdir(parents=True)
+            self.assertIsNone(node.clean_build_revision(nested_archive))
+            triple = "aarch64-apple-darwin"
+            receipt = root / "build" / triple / "build-receipt.json"
+            source = root / "build" / "source"
+            stray = root / "stray.txt"
+            with (
+                patch.object(node, "ensure_extracted", return_value=source),
+                patch.object(node, "needs_configure", return_value=False),
+                patch.object(node, "run_make") as make,
+                patch.object(node, "built_node", return_value=source / "node"),
+                patch.object(node, "apply_product_patches", return_value=[]),
+            ):
+                node.build(root, triple, 1)
+                original = receipt.read_text()
+                self.assertEqual(json.loads(original)["source_revision"], revision)
+                make.side_effect = lambda *args: stray.write_text("edited during build")
+                with self.assertRaisesRegex(node.BuildError, "checkout changed during build"):
+                    node.build(root, triple, 1)
+                self.assertEqual(receipt.read_text(), original)
+                make.side_effect = None
+                node.build(root, triple, 1)
+                self.assertNotIn("source_revision", json.loads(receipt.read_text()))
+
     def test_build_binds_lock_and_rejects_changes_before_writing_receipt(self):
         import shutil
 
@@ -316,6 +353,7 @@ class BuildReceiptTest(unittest.TestCase):
             ):
                 node.build(root, triple, 1)
                 original = receipt.read_text(encoding="utf-8")
+                self.assertNotIn("source_revision", json.loads(original))
                 self.assertEqual(
                     json.loads(original)["sources_lock_sha256"], hashlib.sha256(lock.read_bytes()).hexdigest()
                 )

@@ -112,7 +112,8 @@ jobs:
             --env TMPDIR=/work/.work/tmp \
             --env TARGET \
             "$ALPINE_AMD64" sh -ec '
-              apk add --no-cache python3=3.14.10-r1 build-base=0.5-r4 clang22=22.1.3-r2 linux-headers=7.0.0-r1 perl=5.42.3-r0 pkgconf=2.5.1-r0
+              apk add --no-cache python3=3.14.10-r1 build-base=0.5-r4 clang22=22.1.3-r2 linux-headers=7.0.0-r1 perl=5.42.3-r0 pkgconf=2.5.1-r0 git=2.54.1-r0
+              git config --global --add safe.directory /work
               make doctor build verify TARGET="$TARGET" JOBS="$(nproc)"
             '
 
