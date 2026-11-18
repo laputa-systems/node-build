@@ -107,6 +107,66 @@ records, including an empty list that created a release on the baseline.
 The candidate rejects them before creating the output directory. All 78
 tests passed in pinned Alpine, including the native musl host check.
 
+The assembly entrypoint slice at `8e2ea74a8248c6a36ad452a4ccd8e8cb9e1da7ae`
+measured every mutation in `git_revision`, `clean_build_revision`, and
+`load_record` in two independent archived copies on macOS arm64, Python 3.15.2,
+mutmut 3.8.1 and pytest 9.2.0 from the mirror. Both commands exited 0 under
+the 120-second cap, one mutmut worker, and `cpu-guard --cores 2`. The selected
+identity sets were equal: 47 Git revision, 5 clean revision, 10 record, 62
+total. Baseline: 34 killed, 23 survived, 5 no-tests. Candidate: 42 killed,
+20 survived, 0 no-tests. Both had 0 timeouts, suspicious, skipped, type-check
+kills, interrupted, unviable, and uncompleted selected mutations. The 388
+progress denominator includes unselected functions. The 133 prior identities
+were not rerun; `buildsys/release.py` was byte-identical in both copies and
+the checkout.
+
+All five clean-revision identities moved from no-tests to killed. Git revision
+45 and 47 and record 2 moved from survived to killed. The candidate's remaining
+survivors are Git revision 6, 7, 12, 13, 15, 21, 24, 25, 28, 29, 30, 32,
+35, 36, 37, 39, 41, 46 and record 5, 7. `mutmut show` identifies Git 6/12/24
+as timeout changes, 7/13 as equivalent default `check` values, 15/21 as command
+case changes on this case-insensitive host, and 25 as `check=True`. Git 28–30
+change the non-checkout error, which the scratch fixture does not reach because
+it is nested in this checkout; 46 changes the root diagnostic while retaining
+the asserted substring. Git 32/35/36/37/39/41 alter splitting or trimming Git
+output and need distinctive checkout paths or output to distinguish. Record 5
+uses the host default encoding, and 7 changes the spelling to `UTF-8`; both
+survive under this UTF-8 locale. These remain open evidence, not claims of
+equivalence across environments. More distant producer and output assembly
+behaviors remain open.
+
+The new fixture writes real records and initializes a disposable Git repository,
+then checks clean, ignored, nested and untracked states. In a third archived
+copy, replacing `return None if git_dirty(repo_root) else revision` with
+`return revision` made `ReleaseInputTest.test_checkout_revision_and_cleanliness_follow_real_git_state`
+fail on the untracked file (pytest exit 1, expected `None`). The unmodified
+release suite passed 22 tests and 38 subtests, and `make lint` passed. The
+broader controller selection had 48 passing tests but failed the known host
+lock check: Xcode 27.2 versus 27.1 and SDK 27.2 versus 27.0.
+
+Reproduce the two runs from the base and a checkout containing the tests:
+
+```sh
+mkdir -p .work/tmp/baseline .work/tmp/candidate
+uv venv --python 3.15 .work/venv
+uv pip install --python .work/venv/bin/python --index-url https://pypi.17166969.xyz/simple 'mutmut==3.8.1' 'pytest==9.2.0' 'laputa-buildlib==0.1.0'
+for d in baseline candidate; do
+  git archive 8e2ea74a8248c6a36ad452a4ccd8e8cb9e1da7ae | tar -x -C ".work/tmp/$d"
+  printf '\n[tool.mutmut]\nsource_paths = ["buildsys/"]\nonly_mutate = ["buildsys/release.py"]\npytest_add_cli_args_test_selection = ["tests/test_release.py"]\nalso_copy = [".github/"]\n' >> ".work/tmp/$d/pyproject.toml"
+  mkdir -p ".work/tmp/$d/.work/tmp"
+done
+cp tests/test_release.py .work/tmp/candidate/tests/test_release.py
+for d in baseline candidate; do
+  (cd ".work/tmp/$d" && TMPDIR="$PWD/.work/tmp" timeout 120 cpu-guard --cores 2 -- ../../venv/bin/mutmut run --max-children 1 'buildsys.release.x_load_record__mutmut_*' 'buildsys.release.x_git_revision__mutmut_*' 'buildsys.release.x_clean_build_revision__mutmut_*')
+done
+```
+
+Compare the three complete key sets and values in `mutants/buildsys/release.py.meta`
+`exit_code_by_key` for each copy; `mutmut show <identity>` displays a mutation.
+For the fault control, archive the base into a third copy, copy the candidate
+test file, make the replacement above in that copy, and run
+`python -m pytest -q tests/test_release.py::ReleaseInputTest::test_checkout_revision_and_cleanliness_follow_real_git_state`.
+
 
 Release provenance (DSLP-6) closed after sealed checks exercised the
 checkout, build, package and assembly boundaries.
