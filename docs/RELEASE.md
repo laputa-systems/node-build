@@ -21,7 +21,8 @@ archives, receipts missing or mismatching the current source lock, and an existi
 `dist/release/`. Older unbound receipts require a rebuild. The build checks that the
 source lock remains unchanged before writing its receipt. An extracted source tree
 without a matching archive digest requires a clean build, even if the version
-is unchanged.
+is unchanged. Packaging binds its record to the build receipt and archive bytes.
+Assembly checks both digests before staging assets.
 
 ## Jobs
 

@@ -6,18 +6,51 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import hashing, release
 
-from buildsys import product
+from buildsys import package, product, validate_product
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
 
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
 TRIPLE = "aarch64-apple-darwin"
+
+
+class PackageRecordTest(unittest.TestCase):
+    def test_packaging_links_receipt_and_archive(self):
+        tmp_root = REPO_ROOT / ".work" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_root) as scratch:
+            root = Path(scratch)
+            source = root / "source"
+            source.mkdir()
+            (source / "LICENSE").write_text("fixture license")
+            receipt = root / "build" / TRIPLE / "build-receipt.json"
+            stage = root / "fixture-install"
+            (stage / "bin").mkdir(parents=True)
+            (stage / "bin" / "node").write_bytes(b"fixture binary")
+            with (
+                patch.object(package, "install_to_stage", return_value=stage) as install,
+                patch.object(package, "write_hardening_report", return_value={}),
+                patch.object(validate_product, "validate_install_tree", return_value=[
+                    validate_product.ProductFinding("fixture", True, ""),
+                ]),
+            ):
+                with self.assertRaisesRegex(package.PackageError, "missing build receipt"):
+                    package.package(root, TRIPLE, source)
+                install.assert_not_called()
+                receipt.parent.mkdir(parents=True)
+                receipt.write_text('{"fixture": true}\n')
+                result = package.package(root, TRIPLE, source)
+            archive = Path(result["archive"])
+            record = json.loads((receipt.parent / "package-record.json").read_text())
+            self.assertEqual(record["build_receipt_sha256"], hashing.sha256_file(receipt))
+            self.assertEqual(record["sha256"], hashing.sha256_file(archive))
 
 
 class AssembleTest(unittest.TestCase):
@@ -43,11 +76,17 @@ class AssembleTest(unittest.TestCase):
         checks = [{"name": "c", "ok": True, "detail": ""}]
         build = self.work / "build" / TRIPLE
         (build / "qualify").mkdir(parents=True)
-        (build / "package-record.json").write_text(
-            json.dumps({"product_checks": checks, "hardening": {}}), encoding="utf-8"
-        )
-        (build / "build-receipt.json").write_text(
+        receipt = build / "build-receipt.json"
+        receipt.write_text(
             json.dumps({"sources_lock_sha256": hashing.sha256_file(self.work / "sources.lock.json")}),
+            encoding="utf-8",
+        )
+        (build / "package-record.json").write_text(
+            json.dumps({
+                "product_checks": checks, "hardening": {},
+                "sha256": hashing.sha256_file(archive),
+                "build_receipt_sha256": hashing.sha256_file(receipt),
+            }),
             encoding="utf-8",
         )
         (build / "qualify" / "qualify-record.json").write_text(
@@ -89,6 +128,20 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(names, sorted(names))
         self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
+
+    def test_rejects_a_package_record_from_another_archive_or_receipt(self):
+        path = self.work / "build" / TRIPLE / "package-record.json"
+        valid = json.loads(path.read_text())
+        for field, message in (
+            ("sha256", "package record does not match packaged archive"),
+            ("build_receipt_sha256", "package record does not match build receipt"),
+        ):
+            with self.subTest(field=field):
+                path.write_text(json.dumps(valid | {field: "0" * 64}))
+                with self.assertRaisesRegex(release_assembler.AssemblyError, message):
+                    release_assembler.assemble_all(self.work, (TRIPLE,))
+                self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+                self.assertFalse((self.work / "build" / "assembly-tmp").exists())
 
     def test_rejects_stale_or_unbound_lock_before_creating_release(self):
         lock = self.work / "sources.lock.json"

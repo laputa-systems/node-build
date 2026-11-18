@@ -106,6 +106,10 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     from buildsys import recipes
 
     recipe = recipes.recipe_for_triple(triple)
+    build_receipt = repo_root / "build" / triple / "build-receipt.json"
+    if not build_receipt.is_file():
+        raise PackageError(f"missing build receipt; build first: {build_receipt}")
+    receipt_sha256 = hashing.sha256_file(build_receipt)
     stage = stage_dir(repo_root, triple)
     install_root = install_to_stage(source, stage, recipe)
     shutil.copyfile(source / "LICENSE", install_root / "LICENSE")
@@ -121,11 +125,14 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
         [str(source).encode()],
     )
     validate_product.gate(findings)
+    if hashing.sha256_file(build_receipt) != receipt_sha256:
+        raise PackageError(f"build receipt changed while packaging: {build_receipt}")
     archive_name = product.archive_name(product.NODE_VERSION, triple)
     archive = create_archive(install_root, repo_root / "dist" / triple / archive_name)
     result = {
         "archive": str(archive),
         "sha256": hashing.sha256_file(archive),
+        "build_receipt_sha256": receipt_sha256,
         "size": archive.stat().st_size,
         "pruned": removed,
         "hardening": report,

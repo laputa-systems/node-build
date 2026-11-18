@@ -53,13 +53,19 @@ def validate_triple(repo_root: Path, triple: str, lock_sha256: str) -> dict:
     if not archive.is_file():
         raise AssemblyError(f"missing packaged archive: {archive}")
     package_record = load_record(repo_root / "build" / triple / "package-record.json", "package record")
-    build_receipt = load_record(repo_root / "build" / triple / "build-receipt.json", "build receipt")
+    receipt_path = repo_root / "build" / triple / "build-receipt.json"
+    build_receipt = load_record(receipt_path, "build receipt")
     if build_receipt.get("sources_lock_sha256") != lock_sha256:
         raise AssemblyError(f"build receipt source lock missing or stale; rebuild: {triple}")
+    archive_sha256 = hashing.sha256_file(archive)
+    if package_record.get("sha256") != archive_sha256:
+        raise AssemblyError(f"package record does not match packaged archive bytes; repackage: {triple}")
+    if package_record.get("build_receipt_sha256") != hashing.sha256_file(receipt_path):
+        raise AssemblyError(f"package record does not match build receipt; repackage: {triple}")
     qualify_record = load_record(
         repo_root / "build" / triple / "qualify" / "qualify-record.json", "qualify record"
     )
-    if qualify_record.get("sha256") != hashing.sha256_file(archive):
+    if qualify_record.get("sha256") != archive_sha256:
         raise AssemblyError(f"qualify record does not match packaged archive bytes: {triple}")
     for section in ("product_checks", "smoke", "relocation"):
         if not all_checks_ok(qualify_record.get(section)):
