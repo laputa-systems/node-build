@@ -178,8 +178,9 @@ class StageTripleTest(unittest.TestCase):
 
     def test_copy_error_propagates_without_manifest(self):
         self.archive.unlink()
-        with self.assertRaises(FileNotFoundError):
+        with self.assertRaises(FileNotFoundError) as error:
             release_assembler.stage_triple(self.validated, TRIPLE, self.staging, "a" * 40, "b" * 64)
+        self.assertEqual(error.exception.filename, str(self.archive))
         self.assertEqual(list(self.staging.iterdir()), [])
 
 
