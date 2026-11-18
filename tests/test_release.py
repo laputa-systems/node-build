@@ -230,6 +230,34 @@ class AssembleTest(unittest.TestCase):
                 release_assembler.assemble_all(self.work, (TRIPLE,))
             self.assertFalse(destination.exists())
 
+    def test_rejects_bad_checks_in_each_record_section(self):
+        build = self.work / "build" / TRIPLE
+        for relative, sections in (
+            ("package-record.json", ("product_checks",)),
+            ("qualify/qualify-record.json", ("product_checks", "smoke", "relocation")),
+        ):
+            path = build / relative
+            original = path.read_text()
+            record = json.loads(original)
+            for section in sections:
+                for checks in ([{"ok": True}, {"ok": False}], [{"ok": 1}], [None], {"ok": True}):
+                    with self.subTest(record=relative, section=section, checks=checks):
+                        path.write_text(json.dumps(record | {section: checks}))
+                        with self.assertRaisesRegex(release_assembler.AssemblyError, "not all-ok"):
+                            release_assembler.assemble_all(self.work, (TRIPLE,))
+                        self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+                path.write_text(original)
+
+    def test_rejects_qualification_for_different_archive(self):
+        path = self.work / "build" / TRIPLE / "qualify" / "qualify-record.json"
+        record = json.loads(path.read_text())
+        for digest in (None, "0" * 64):
+            with self.subTest(digest=digest):
+                path.write_text(json.dumps(record | {"sha256": digest}))
+                with self.assertRaisesRegex(release_assembler.AssemblyError, "qualify record does not match"):
+                    release_assembler.assemble_all(self.work, (TRIPLE,))
+                self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+
     def test_refuses_dirty_checkout_and_existing_release(self):
         (self.work / "stray.txt").write_text("x", encoding="utf-8")
         with self.assertRaises(release_assembler.AssemblyError):
