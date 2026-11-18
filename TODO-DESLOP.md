@@ -83,6 +83,12 @@ tests passed in pinned Alpine, including the native musl host check.
 
 ### DSLP-6 · P2 · Bind assembled provenance to the build inputs
 
+The source-lock slice records the pre-build digest, rejects a lock changed during
+the build, and rejects stale or unbound receipts before assembly stages assets.
+A sealed pair of same-version tarballs also proves that the build rejects a
+previously extracted tree after its archive pin changes. Controller revision and
+package/archive binding remain open.
+
 - **Area:** release provenance
 - **Where:** buildsys/node.py:179; buildsys/release.py:46; buildsys/release.py:85
 - **Problem:** Assembly labels an existing qualified archive with the current checkout revision and lock hash without linking the receipt to either; a clean checkout changed after the build can produce a manifest that misidentifies the artifact's provenance. The sealed fixture in docs/DIAGNOSE.md reproduces an old receipt assembled under a new revision; the hosted workflow was not shown to mix artifacts.
