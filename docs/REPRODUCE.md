@@ -32,8 +32,8 @@ python3 build.py build --target <triple>
 
 ## Vendored-source patches
 
-The help footer patch applies on both targets. Node's `configure` ignores `MACOSX_DEPLOYMENT_TARGET`; the floor is
-hardcoded in `common.gypi`. One exact-match patch is applied at extraction
+The help footer patch applies on both targets. The macOS deployment floor is
+hardcoded in `common.gypi`. At extraction an exact-match patch sets that floor
 (see `PRODUCT_PATCHES` in `buildsys/node.py`, patch level recorded in the
 build receipt):
 
