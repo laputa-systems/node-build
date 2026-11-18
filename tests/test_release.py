@@ -46,6 +46,15 @@ class PackageRecordTest(unittest.TestCase):
                 install.assert_not_called()
                 receipt.parent.mkdir(parents=True)
                 receipt.write_text('{"fixture": true}\n')
+                with self.assertRaisesRegex(package.PackageError, "build receipt has no node binary digest"):
+                    package.package(root, TRIPLE, source)
+                install.assert_not_called()
+                receipt.write_text(json.dumps({"built_node_sha256": "0" * 64}))
+                with self.assertRaisesRegex(package.PackageError, "installed node does not match build receipt"):
+                    package.package(root, TRIPLE, source)
+                self.assertFalse((root / "dist").exists())
+                self.assertFalse((receipt.parent / "package-record.json").exists())
+                receipt.write_text(json.dumps({"built_node_sha256": hashing.sha256_file(stage / "bin" / "node")}))
                 result = package.package(root, TRIPLE, source)
             archive = Path(result["archive"])
             record = json.loads((receipt.parent / "package-record.json").read_text())

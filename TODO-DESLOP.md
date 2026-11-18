@@ -90,7 +90,10 @@ previously extracted tree after its archive pin changes. The package record addi
 build receipt to the archive digest; assembly rejects a mismatched receipt or
 archive before staging. A clean checkout revision is now checked before and
 after building and matched by assembly. The sealed controller and package
-fixtures exercise these links. Native release qualification remains separate.
+fixtures exercise these links. The receipt now also hashes the built executable.
+Packaging refuses an absent digest or a different installed binary before creating
+an archive. The pinned Node installer copies the binary bytes on macOS and Linux.
+Native release qualification remains separate.
 
 - **Area:** release provenance
 - **Where:** buildsys/node.py:179; buildsys/release.py:46; buildsys/release.py:85
