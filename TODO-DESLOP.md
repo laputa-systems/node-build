@@ -58,6 +58,26 @@ records, including an empty list that created a release on the baseline.
 The candidate rejects them before creating the output directory. All 78
 tests passed in pinned Alpine, including the native musl host check.
 
+
+Release provenance (DSLP-6) closed after sealed checks exercised the
+checkout, build, package and assembly boundaries.
+The source-lock slice records the pre-build digest, rejects a lock changed during
+the build, and rejects stale or unbound receipts before assembly stages assets.
+A sealed pair of same-version tarballs also proves that the build rejects a
+previously extracted tree after its archive pin changes. The package record additionally links the
+build receipt to the archive digest; assembly rejects a mismatched receipt or
+archive before staging. A clean checkout revision is now checked before and
+after building and matched by assembly. The sealed controller and package
+fixtures exercise these links. The receipt now also hashes the built executable.
+Packaging refuses an absent digest or a different installed binary before creating
+an archive. The pinned Node installer copies the binary bytes on macOS and Linux.
+Native release qualification remains separate.
+
+Malformed record fixtures reproduce raw JSON and type exceptions on the base.
+Assembly now reports the offending record and rejects a missing, empty or
+non-boolean package check before publishing output. All 87 pinned Alpine
+controller tests passed.
+
 ## Tickets
 
 
@@ -81,26 +101,6 @@ tests passed in pinned Alpine, including the native musl host check.
 - **Effort:** M
 
 
-### DSLP-6 · P2 · Bind assembled provenance to the build inputs
-
-The source-lock slice records the pre-build digest, rejects a lock changed during
-the build, and rejects stale or unbound receipts before assembly stages assets.
-A sealed pair of same-version tarballs also proves that the build rejects a
-previously extracted tree after its archive pin changes. The package record additionally links the
-build receipt to the archive digest; assembly rejects a mismatched receipt or
-archive before staging. A clean checkout revision is now checked before and
-after building and matched by assembly. The sealed controller and package
-fixtures exercise these links. The receipt now also hashes the built executable.
-Packaging refuses an absent digest or a different installed binary before creating
-an archive. The pinned Node installer copies the binary bytes on macOS and Linux.
-Native release qualification remains separate.
-
-- **Area:** release provenance
-- **Where:** buildsys/node.py:179; buildsys/release.py:46; buildsys/release.py:85
-- **Problem:** Assembly labels an existing qualified archive with the current checkout revision and lock hash without linking the receipt to either; a clean checkout changed after the build can produce a manifest that misidentifies the artifact's provenance. The sealed fixture in docs/DIAGNOSE.md reproduces an old receipt assembled under a new revision; the hosted workflow was not shown to mix artifacts.
-- **Recommendation:** Record the build's controller revision and relevant lock identity in the receipt, bind the package and qualification to that receipt and archive, and reject mismatches during assembly. Add a fixture that changes the checkout after building and expects rejection.
-- **Fix with:** durable-state
-- **Effort:** M
 
 
 

@@ -48,8 +48,13 @@ def clean_build_revision(repo_root: Path) -> str | None:
 def load_record(path: Path, what: str) -> dict:
     if not path.is_file():
         raise AssemblyError(f"missing {what}: {path} (run package/qualify first)")
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
+    try:
+        record: object = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as error:
+        raise AssemblyError(f"invalid {what}: {path}: {error}") from error
+    if not isinstance(record, dict):
+        raise AssemblyError(f"invalid {what}: {path}: expected an object")
+    return record
 
 
 def all_checks_ok(entries: object) -> bool:
@@ -88,9 +93,8 @@ def validate_triple(repo_root: Path, triple: str, lock_sha256: str, revision: st
         recorded: object = qualify_record.get(field)
         if type(recorded) is not int or recorded != smoke_count:
             raise AssemblyError(f"qualify smoke counts disagree with {field}: {triple}")
-    for entry in package_record.get("product_checks", []):
-        if not entry["ok"]:
-            raise AssemblyError(f"package product checks are not all-ok: {triple}")
+    if not all_checks_ok(package_record.get("product_checks")):
+        raise AssemblyError(f"package product checks are not all-ok: {triple}")
     return {
         "archive": archive,
         "package_record": package_record,

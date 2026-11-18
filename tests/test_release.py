@@ -141,6 +141,35 @@ class AssembleTest(unittest.TestCase):
         self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
 
+    def test_rejects_malformed_records_before_staging(self):
+        build = self.work / "build" / TRIPLE
+        for relative, label in (
+            ("package-record.json", "package record"),
+            ("build-receipt.json", "build receipt"),
+            ("qualify/qualify-record.json", "qualify record"),
+        ):
+            path = build / relative
+            valid = path.read_bytes()
+            for contents in ("[]", "{"):
+                with self.subTest(label=label, contents=contents):
+                    path.write_text(contents)
+                    try:
+                        with self.assertRaisesRegex(release_assembler.AssemblyError, f"invalid {label}"):
+                            release_assembler.assemble_all(self.work, (TRIPLE,))
+                        self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+                    finally:
+                        path.write_bytes(valid)
+
+    def test_rejects_incomplete_package_checks_before_staging(self):
+        path = self.work / "build" / TRIPLE / "package-record.json"
+        record = json.loads(path.read_text())
+        for checks in ([], None, [{"name": "c", "ok": "yes"}]):
+            with self.subTest(checks=checks):
+                path.write_text(json.dumps(record | {"product_checks": checks}))
+                with self.assertRaisesRegex(release_assembler.AssemblyError, "package product checks are not all-ok"):
+                    release_assembler.assemble_all(self.work, (TRIPLE,))
+                self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+
     def test_rejects_a_package_record_from_another_archive_or_receipt(self):
         path = self.work / "build" / TRIPLE / "package-record.json"
         valid = json.loads(path.read_text())
