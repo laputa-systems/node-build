@@ -320,6 +320,30 @@ The extended run sampled active compiler processes while the buffered
 make log was unchanged, then completed both builds. DSLP-4 retains the
 wider controller mutation and whole-change qualification.
 
+**Archive budget boundary**
+
+The `check-budgets` command now rejects string, null, Boolean and negative
+byte ceilings through its exit 2 diagnostic. A real xz archive fixture
+checks both exact limits, each exceeded limit, missing inputs and exclusion
+of symlinks from payload size. The new CLI test failed against `cc0ca86`
+before the fix.
+
+With only the archive fixtures over `cc0ca86`, Mutmut 3.8.1 and pytest
+9.2.0 caught 64 of 67 identities in `buildsys/budgets.py`. With the
+validation fix and CLI test, the selection caught 78 of 81 identities.
+The three surviving changes omit the default `tarfile.open` mode or
+uppercase `dist` and `release-budgets.json` on the case-insensitive
+macOS volume. The latter two remain distinguishable on a case-sensitive
+filesystem.
+
+To reproduce, archive the revision into a disposable directory under
+`.work/tmp`. In that copy configure Mutmut with
+`source_paths = ["buildsys/"]`, `only_mutate = ["buildsys/budgets.py"]`
+and `pytest_add_cli_args_test_selection = ["tests/test_controller.py::ArchiveBudgetTest"]`.
+Create `.work/tmp` inside the copy and run
+`uvx --with laputa-buildlib==0.1.0 --with pytest==9.2.0 mutmut@3.8.1 run --max-children 1 'buildsys.budgets.*'`.
+Read `exit_code_by_key` in `mutants/buildsys/budgets.py.meta`.
+
 ## Tickets
 
 
@@ -328,7 +352,7 @@ wider controller mutation and whole-change qualification.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and mutation results are unmeasured; no deslop mutation lane exists.
+- **Problem:** Coverage and several boundary selections are measured. Survivor dispositions and the whole-change mutation gate remain open.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
@@ -350,8 +374,8 @@ wider controller mutation and whole-change qualification.
 ### DSLP-8 · P3 · Qualify remaining generic return and input shapes
 
 - **Area:** deslop · types
-- **Where:** buildsys/budgets.py; buildsys/comparison.py; buildsys/node.py; buildsys/release.py
-- **Problem:** The missing-type-argument candidate still reports 30 declarations. Their valid JSON and controller shapes need separate evidence before this setting qualifies.
+- **Where:** buildsys/comparison.py; buildsys/node.py; buildsys/release.py
+- **Problem:** The missing-type-argument candidate has open declarations in these modules. Their valid JSON and controller shapes need separate evidence before this setting qualifies.
 - **Recommendation:** Work one producer and its consumers at a time, preserve the accepted JSON forms and add a negative witness where precise types reject an actual bad program.
 - **Fix with:** typing-audit
 - **Effort:** M
