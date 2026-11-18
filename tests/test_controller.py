@@ -18,7 +18,7 @@ from buildlib import locks
 
 import build
 import buildsys
-from buildsys import bootstrap, inputs, node, product, recipes, targets
+from buildsys import bootstrap, budgets, inputs, node, product, recipes, targets
 
 
 class TargetTest(unittest.TestCase):
@@ -41,6 +41,86 @@ class TargetTest(unittest.TestCase):
     def test_unknown_triple_rejected(self):
         with self.assertRaises(targets.UnsupportedTargetError):
             targets.target_for_triple("x86_64-apple-darwin")
+
+
+class ArchiveBudgetTest(unittest.TestCase):
+    triple = "aarch64-apple-darwin"
+
+    def setUp(self):
+        scratch = REPO_ROOT / ".work" / "tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        directory = tempfile.TemporaryDirectory(dir=scratch)
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.archive = self.root / "dist" / self.triple / product.archive_name(product.NODE_VERSION, self.triple)
+        self.archive.parent.mkdir(parents=True)
+        payloads = {"bin/node": b"node" * 4, "LICENSE": b"license\n"}
+        with tarfile.open(self.archive, "w:xz") as tar:
+            for name, data in payloads.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(data)
+                tar.addfile(member, io.BytesIO(data))
+            link = tarfile.TarInfo("bin/node-tool")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "node"
+            tar.addfile(link)
+        self.compressed = self.archive.stat().st_size
+        self.payload = sum(map(len, payloads.values()))
+
+    def write_budget(self, compressed: int, payload: int) -> None:
+        limits = {"compressed_max_bytes": compressed, "installed_payload_max_bytes": payload}
+        record = {"schema_version": 1, "targets": {self.triple: limits}}
+        (self.root / "release-budgets.json").write_text(json.dumps(record))
+
+    def test_archive_budget_accepts_exact_ceilings(self):
+        self.write_budget(self.compressed, self.payload)
+        record = budgets.check_budgets(self.root, self.triple)
+        self.assertEqual(record, {
+            "triple": self.triple, "compressed": self.compressed, "payload": self.payload,
+            "ceilings": {"compressed_max_bytes": self.compressed, "installed_payload_max_bytes": self.payload},
+            "ok": True,
+        })
+
+    def test_archive_budget_reports_every_exceeded_ceiling(self):
+        for compressed, payload, expected in (
+            (0, self.payload, ["compressed"]),
+            (self.compressed - 1, self.payload, ["compressed"]),
+            (self.compressed, self.payload - 1, ["payload"]),
+            (self.compressed - 1, self.payload - 1, ["compressed", "payload"]),
+        ):
+            with self.subTest(compressed=compressed, payload=payload):
+                self.write_budget(compressed, payload)
+                with self.assertRaises(budgets.BudgetError) as error:
+                    budgets.check_budgets(self.root, self.triple)
+                self.assertEqual([failure.split()[0] for failure in str(error.exception).split("; ")], expected)
+
+    def test_archive_budget_requires_the_target_and_archive(self):
+        self.write_budget(self.compressed, self.payload)
+        with self.assertRaisesRegex(budgets.BudgetError, "x86_64-unknown-linux-musl"):
+            budgets.check_budgets(self.root, "x86_64-unknown-linux-musl")
+        self.archive.unlink()
+        with self.assertRaisesRegex(budgets.BudgetError, "missing archive"):
+            budgets.check_budgets(self.root, self.triple)
+
+    def test_archive_budget_rejects_invalid_byte_ceilings_at_the_cli(self):
+        for field, value in (
+            ("compressed_max_bytes", "invalid"),
+            ("installed_payload_max_bytes", True),
+            ("compressed_max_bytes", -1),
+            ("installed_payload_max_bytes", None),
+        ):
+            with self.subTest(field=field, value=value):
+                limits: dict[str, object] = {
+                    "compressed_max_bytes": self.compressed, "installed_payload_max_bytes": self.payload,
+                }
+                limits[field] = value
+                document = {"schema_version": 1, "targets": {self.triple: limits}}
+                (self.root / "release-budgets.json").write_text(json.dumps(document))
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch.object(build, "REPO_ROOT", self.root), redirect_stdout(stdout), redirect_stderr(stderr):
+                    self.assertEqual(build.main(["check-budgets", "--target", self.triple]), 2)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn(f"{self.triple}.{field}", stderr.getvalue())
 
 
 class ProductTest(unittest.TestCase):
