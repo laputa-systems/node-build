@@ -356,6 +356,28 @@ Create `.work/tmp` inside the copy and run
 `uvx --with laputa-buildlib==0.1.0 --with pytest==9.2.0 mutmut@3.8.1 run --max-children 1 'buildsys.budgets.*'`.
 Read `exit_code_by_key` in `mutants/buildsys/budgets.py.meta`.
 
+**Reference comparison boundaries**
+
+`compare-reference` now identifies the binary when the version probe
+cannot start or times out. A real non-executable reference file
+reproduced an uncaught permission error at `e287fb4`. The CLI fixture
+now checks exit 2 and the diagnostic. Separate executable fixtures
+check version mismatch, nonzero status and explicit and PATH lookup.
+Deterministic samples verify both probe orders and the persisted JSON.
+
+The typed probe fields preserve the existing JSON report. Import
+`_ProbeResult` in a scratch checker input and assign a scalar to
+`candidate_ms` to reproduce the ty rejection. With the same
+`buildsys/comparison.py` source and 177 generated keys, the comparison
+suite moved from 118 to 132 catches. Use the archive budget mutation
+recipe above with `only_mutate = ["buildsys/comparison.py"]`, the
+locked Buildlib wheel, `tests/test_compare.py`, and selection
+`buildsys.comparison.*`. The wider comparison scope remains open.
+
+All 12 comparison cases, Ruff and ty passed. The full macOS suite
+reported one host lock mismatch, reproduced at `e287fb4`. The host
+has Xcode and SDK 27.2 against the locked Xcode 27.1 and SDK 27.0.
+
 ## Tickets
 
 
@@ -386,8 +408,8 @@ Read `exit_code_by_key` in `mutants/buildsys/budgets.py.meta`.
 ### DSLP-8 · P3 · Qualify remaining generic return and input shapes
 
 - **Area:** deslop · types
-- **Where:** buildsys/comparison.py; buildsys/node.py; buildsys/release.py
-- **Problem:** The missing-type-argument candidate has open declarations in these modules. Their valid JSON and controller shapes need separate evidence before this setting qualifies.
+- **Where:** buildsys/node.py; buildsys/release.py
+- **Problem:** The missing-type-argument candidate has open declarations in these modules. The comparison report has a checked shape and negative witness. The remaining JSON and controller shapes need separate evidence.
 - **Recommendation:** Work one producer and its consumers at a time, preserve the accepted JSON forms and add a negative witness where precise types reject an actual bad program.
 - **Fix with:** typing-audit
 - **Effort:** M
