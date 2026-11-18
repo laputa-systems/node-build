@@ -51,25 +51,25 @@ def load_bootstrap_lock(path: Path) -> Mapping[str, Any]:
 
 
 def validate_bootstrap_lock(lock: Mapping[str, Any]) -> None:
-    for key in ("toolchain", "cpu_baseline", "host_requirements"):
-        if key not in lock:
-            raise ValueError(f"bootstrap lock missing section: {key}")
-    for key in ("xcode", "sdk", "clang", "host_machine"):
-        if key not in lock["toolchain"]:
-            raise ValueError(f"bootstrap lock toolchain missing: {key}")
-    for key in ("cflag", "deployment_target"):
-        if key not in lock["cpu_baseline"]:
-            raise ValueError(f"bootstrap lock cpu_baseline missing: {key}")
-    if "linux_toolchain" not in lock:
-        raise ValueError("bootstrap lock missing section: linux_toolchain")
-    for key in ("gcc", "clang", "musl", "host_machine"):
-        if key not in lock["linux_toolchain"]:
-            raise ValueError(f"bootstrap lock linux_toolchain missing: {key}")
-    if "linux_baseline" not in lock:
-        raise ValueError("bootstrap lock missing section: linux_baseline")
-    for key in ("cflag", "deployment_target"):
-        if key not in lock["linux_baseline"]:
-            raise ValueError(f"bootstrap lock linux_baseline missing: {key}")
+    required_fields = {
+        "toolchain": ("xcode", "sdk", "clang", "host_machine"),
+        "cpu_baseline": ("cflag", "deployment_target"),
+        "host_requirements": (),
+        "linux_toolchain": ("gcc", "clang", "musl", "host_machine"),
+        "linux_baseline": ("cflag", "deployment_target"),
+    }
+    for section, fields in required_fields.items():
+        if section not in lock:
+            raise ValueError(f"bootstrap lock missing section: {section}")
+        values: object = lock[section]
+        if not isinstance(values, Mapping):
+            raise TypeError(f"bootstrap lock section must be an object: {section}")
+        for key in fields:
+            if key not in values:
+                raise ValueError(f"bootstrap lock {section} missing: {key}")
+            value: object = values[key]
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"bootstrap lock {section} {key} must be a nonempty string")
 
 
 def _run(argv: list[str]) -> str:

@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import locks
 
+import build
 import buildsys
 from buildsys import bootstrap, inputs, node, product, recipes, targets
 
@@ -387,6 +389,30 @@ class ConfigureMarkerTest(unittest.TestCase):
 
 
 class BootstrapTest(unittest.TestCase):
+    def test_doctor_rejects_malformed_lock_sections_before_inspecting_host(self):
+        base = json.loads((REPO_ROOT / "bootstrap.lock.json").read_text())
+        cases = (
+            ("toolchain", None, "bootstrap lock section must be an object: toolchain"),
+            ("cpu_baseline", ["cflag", "deployment_target"], "bootstrap lock section must be an object: cpu_baseline"),
+            ("linux_toolchain", "gcc clang musl host_machine", "bootstrap lock section must be an object: linux_toolchain"),
+            ("linux_baseline", {**base["linux_baseline"], "cflag": 7}, "bootstrap lock linux_baseline cflag must be a nonempty string"),
+        )
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            lock = Path(scratch) / "bootstrap.lock.json"
+            with (
+                patch.object(build, "BOOTSTRAP_LOCK", lock),
+                patch.object(bootstrap, "current_identity", side_effect=AssertionError("inspected macOS")),
+                patch.object(bootstrap, "linux_current_identity", side_effect=AssertionError("inspected Linux")),
+            ):
+                for section, replacement, message in cases:
+                    with self.subTest(section=section):
+                        lock.write_text(json.dumps({**base, section: replacement}))
+                        with redirect_stderr(io.StringIO()) as stderr, redirect_stdout(io.StringIO()) as stdout:
+                            status = build.main(["doctor", "--target", "x86_64-unknown-linux-musl"])
+                        self.assertEqual(status, 2)
+                        self.assertEqual(stdout.getvalue(), "")
+                        self.assertEqual(stderr.getvalue(), f"error: {message}\n")
+
     def test_lock_matches_host(self):
         import platform
         import subprocess

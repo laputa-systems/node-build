@@ -260,6 +260,16 @@ zero within 120 seconds. The production mutation files compare byte
 for byte and the selected result maps account for all 64 identities.
 Native release qualification and the wider Tests gate remain open.
 
+Doctor lock admission at `c1c8b097b9deccc5836cffac613472ef43d7aa20`
+reproduced an uncaught `TypeError` for a null toolchain. A list and
+a string with the expected field names, and a numeric baseline flag,
+reached host inspection before rejection. The candidate checks the
+object shape of every required section and string values in the four
+sections consumed by Doctor. The real Doctor path returns 2 with the
+exact section or field error before inspecting the host. The ordinary
+suite still checks the tracked lock on the pinned Alpine builder.
+The lock's versions and supported targets are unchanged.
+
 ## Tickets
 
 
