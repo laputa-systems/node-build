@@ -296,6 +296,30 @@ with a fresh `PYTHONPYCACHEPREFIX`. The control exits 1 with
 single macOS casefold survivor from the 64-identity assembly scope.
 No new native release ran.
 
+
+**Native Node artifact trial**
+
+[Run 44367665068](https://github.com/laputa-systems/node-build/actions/runs/44367665068)
+qualified Node 26.12.1 on native x86-64 Linux musl and macOS ARM64.
+The workflow at `8c99b76803902055cc891503a0451434e97b433a` used the
+same build sources and lockfiles as `597add72e9b3ea144819bc751876f1b221f30c97`.
+Reproduce with `make doctor`, `make build` and `make verify` for each
+native `TARGET`, using the pinned Alpine and `xcode-27` environments
+from [the trial](https://github.com/laputa-systems/node-build/pull/37).
+Both targets passed all 18 smoke cases and the compressed and unpacked
+size budgets. The archive digests were computed in the runner jobs.
+
+| Target | Compressed bytes | Payload bytes | Archive SHA-256 |
+| --- | ---: | ---: | --- |
+| `x86_64-unknown-linux-musl` | 28,381,240 | 182,335,288 | `b7a0557ef6e36cceb28e503cc0989d9095758c309cebc50cc26b4fe545a5e13f` |
+| `aarch64-apple-darwin` | 22,108,932 | 179,809,306 | `4841d975d30d30b25b2e823eef5e51a220f194177e90871300f3e26a264d5054` |
+
+Linux took 1 h 54 min and macOS took 2 h 1 min including packaging and
+verification. The earlier 100-minute attempts ended during V8 compilation.
+The extended run sampled active compiler processes while the buffered
+make log was unchanged, then completed both builds. DSLP-4 retains the
+wider controller mutation and whole-change qualification.
+
 ## Tickets
 
 
