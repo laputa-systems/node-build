@@ -79,12 +79,16 @@ def _run(argv: list[str]) -> str:
     return (completed.stdout or "") + (completed.stderr or "")
 
 
+def _matched_version(output: str, pattern: str, tool: str) -> str:
+    match = re.search(pattern, output)
+    if match is None:
+        raise RuntimeError(f"could not parse {tool} output: {output!r}")
+    start, end = match.span(1)
+    return output[start:end]
+
+
 def xcode_version() -> str:
-    output = _run(["xcodebuild", "-version"])
-    match = re.search(r"Xcode\s+(\S+)", output)
-    if not match:
-        raise RuntimeError(f"could not parse xcodebuild output: {output!r}")
-    return match.group(1)
+    return _matched_version(_run(["xcodebuild", "-version"]), r"Xcode\s+(\S+)", "xcodebuild")
 
 
 def sdk_path() -> str:
@@ -96,11 +100,7 @@ def sdk_version() -> str:
 
 
 def clang_version() -> str:
-    output = _run(["clang", "--version"])
-    match = re.search(r"Apple clang version\s+(\S+)", output)
-    if not match:
-        raise RuntimeError(f"could not parse clang output: {output!r}")
-    return match.group(1)
+    return _matched_version(_run(["clang", "--version"]), r"Apple clang version\s+(\S+)", "clang")
 
 
 def current_identity() -> ToolchainIdentity:
@@ -170,11 +170,7 @@ def gcc_version() -> str:
 
 
 def linux_clang_version() -> str:
-    output = _run(["clang", "--version"])
-    match = re.search(r"clang version\s+(\S+)", output)
-    if not match:
-        raise RuntimeError(f"could not parse clang output: {output!r}")
-    return match.group(1)
+    return _matched_version(_run(["clang", "--version"]), r"clang version\s+(\S+)", "clang")
 
 
 def musl_version() -> str:
@@ -182,10 +178,7 @@ def musl_version() -> str:
         ["ldd", "--version"], capture_output=True, text=True, timeout=60, check=False
     )
     output = (completed.stdout or "") + (completed.stderr or "")
-    match = re.search(r"Version\s+(\S+)", output)
-    if not match:
-        raise RuntimeError(f"could not parse musl ldd output: {output!r}")
-    return match.group(1)
+    return _matched_version(output, r"Version\s+(\S+)", "musl ldd")
 
 
 def linux_current_identity() -> LinuxToolchainIdentity:

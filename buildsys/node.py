@@ -125,10 +125,13 @@ def needs_configure(source: Path, repo_root: Path, triple: str, recipe: dict) ->
     if not marker.is_file():
         return True
     try:
-        recorded = json.loads(marker.read_text(encoding="utf-8"))
+        recorded: object = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return True
-    return recorded.get("recipe_sha256") != recipe_fingerprint(recipe) or not (
+    if not isinstance(recorded, dict):
+        return True
+    recorded_fingerprint: object = recorded.get("recipe_sha256")
+    return recorded_fingerprint != recipe_fingerprint(recipe) or not (
         source / "config.mk"
     ).exists()
 
