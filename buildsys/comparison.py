@@ -4,6 +4,7 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 from buildsys import benchmarks
 
@@ -12,10 +13,30 @@ class CompareError(Exception):
     pass
 
 
+class _ProbeResult(TypedDict):
+    reference_ms: list[float]
+    candidate_ms: list[float]
+    verdict: str
+
+
+class _ComparisonReport(TypedDict):
+    node_version: str
+    machine: str
+    cpu: str
+    toolchain: str
+    probes: dict[str, _ProbeResult]
+    limiter_note: str
+
+
 def binary_version(binary: Path, cwd: Path) -> str:
-    completed = subprocess.run(
-        [str(binary), "--version"], cwd=cwd, capture_output=True, text=True, timeout=60, check=False
-    )
+    try:
+        completed = subprocess.run(
+            [str(binary), "--version"], cwd=cwd, capture_output=True, text=True, timeout=60, check=False
+        )
+    except subprocess.TimeoutExpired as error:
+        raise CompareError(f"{binary} --version timed out") from error
+    except OSError as error:
+        raise CompareError(f"{binary} --version could not run: {error}") from error
     if completed.returncode != 0:
         raise CompareError(f"{binary} --version failed")
     return completed.stdout.strip()
@@ -33,7 +54,7 @@ def resolve_reference(explicit: str | None) -> Path:
     return Path(found)
 
 
-def compare(repo_root: Path, triple: str, reference: str | None) -> dict:
+def compare(repo_root: Path, triple: str, reference: str | None) -> _ComparisonReport:
     from buildsys import node as node_driver
 
     candidate = node_driver.built_node(node_driver.source_dir(repo_root))
@@ -58,7 +79,7 @@ def compare(repo_root: Path, triple: str, reference: str | None) -> dict:
             reference_binary if side == "reference" else candidate, benchmarks.JSON_PROBE, work
         ),
     )
-    record = {
+    record: _ComparisonReport = {
         "node_version": candidate_version,
         "machine": platform.machine(),
         "cpu": platform.processor(),
@@ -77,5 +98,5 @@ def compare(repo_root: Path, triple: str, reference: str | None) -> dict:
         },
         "limiter_note": "host-shared timing; interleave sides and treat gaps inside run-to-run spread as no-measurable-difference",
     }
-    benchmarks.record_json(record, work / "compare-record.json")
+    benchmarks.record_json(dict(record), work / "compare-record.json")
     return record

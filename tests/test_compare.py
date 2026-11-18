@@ -1,12 +1,19 @@
+import io
 import json
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from buildsys import benchmarks
+import build
+from buildsys import benchmarks, comparison, node
 
 
 class VerdictTest(unittest.TestCase):
@@ -44,6 +51,90 @@ class VerdictTest(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), record)
         finally:
             path.unlink(missing_ok=True)
+
+
+class ComparisonTest(unittest.TestCase):
+    triple = "aarch64-apple-darwin"
+
+    def setUp(self):
+        scratch = REPO_ROOT / ".work" / "tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        directory = tempfile.TemporaryDirectory(dir=scratch)
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.candidate = node.source_dir(self.root) / "out" / "Release" / "node"
+        self.candidate.parent.mkdir(parents=True)
+        self.reference = self.root / "reference-node"
+        for binary in (self.candidate, self.reference):
+            binary.write_text("#!/bin/sh\nprintf '%s\\n' v26.12.1\n")
+            binary.chmod(0o700)
+
+    def test_version_spawn_failure_reports_the_reference_at_the_cli(self):
+        self.reference.chmod(0o600)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(build, "REPO_ROOT", self.root), redirect_stdout(stdout), redirect_stderr(stderr):
+            code = build.main(["compare-reference", "--target", self.triple, "--reference", str(self.reference)])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn(f"{self.reference} --version could not run", stderr.getvalue())
+        self.assertFalse((self.root / "build" / self.triple / "compare-work" / "compare-record.json").exists())
+
+    def test_version_timeout_reports_the_binary(self):
+        error = subprocess.TimeoutExpired([str(self.reference), "--version"], 60)
+        with (
+            patch.object(comparison.subprocess, "run", side_effect=error),
+            self.assertRaises(comparison.CompareError) as failure,
+        ):
+            comparison.binary_version(self.reference, self.root)
+        self.assertEqual(str(failure.exception), f"{self.reference} --version timed out")
+
+    def test_version_probe_reports_a_nonzero_exit(self):
+        self.reference.write_text("#!/bin/sh\nexit 7\n")
+        with self.assertRaises(comparison.CompareError) as failure:
+            comparison.binary_version(self.reference, self.root)
+        self.assertEqual(str(failure.exception), f"{self.reference} --version failed")
+
+    def test_reference_resolution_uses_the_explicit_path_or_path_lookup(self):
+        missing = self.root / "missing-node"
+        with self.assertRaises(comparison.CompareError) as failure:
+            comparison.resolve_reference(str(missing))
+        self.assertEqual(str(failure.exception), f"reference binary not found: {missing}")
+
+        with patch.dict(os.environ, {"PATH": str(self.root)}):
+            with self.assertRaises(comparison.CompareError) as failure:
+                comparison.resolve_reference(None)
+            self.assertEqual(str(failure.exception), "no reference node on PATH; pass --reference")
+            found = self.root / "node"
+            found.symlink_to(self.reference)
+            self.assertEqual(comparison.resolve_reference(None), found)
+            self.assertEqual(comparison.resolve_reference(str(self.reference)), self.reference)
+
+    def test_mismatched_versions_stop_before_sampling(self):
+        self.reference.write_text("#!/bin/sh\nprintf '%s\\n' v25.0.0\n")
+        with (
+            patch.object(benchmarks, "time_process") as startup,
+            self.assertRaises(comparison.CompareError) as failure,
+        ):
+            comparison.compare(self.root, self.triple, str(self.reference))
+        startup.assert_not_called()
+        self.assertEqual(str(failure.exception), "version mismatch: candidate v26.12.1 vs reference v25.0.0")
+
+    def test_comparison_preserves_sample_sides_in_the_written_report(self):
+        with (
+            patch.object(benchmarks, "time_process", side_effect=[10.0, 5.0] * 5) as startup,
+            patch.object(benchmarks, "time_probe", side_effect=[20.0, 30.0] * 5) as json_probe,
+        ):
+            record = comparison.compare(self.root, self.triple, str(self.reference))
+        expected_order = [self.reference, self.candidate] * 5
+        self.assertEqual([sample.args[0] for sample in startup.call_args_list], expected_order)
+        self.assertEqual([sample.args[0] for sample in json_probe.call_args_list], expected_order)
+        self.assertEqual(record["node_version"], "v26.12.1")
+        self.assertEqual(record["probes"], {
+            "startup": {"reference_ms": [10.0] * 5, "candidate_ms": [5.0] * 5, "verdict": "faster"},
+            "json": {"reference_ms": [20.0] * 5, "candidate_ms": [30.0] * 5, "verdict": "slower"},
+        })
+        report = self.root / "build" / self.triple / "compare-work" / "compare-record.json"
+        self.assertEqual(json.loads(report.read_text()), record)
 
 
 if __name__ == "__main__":
