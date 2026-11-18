@@ -88,7 +88,9 @@ the build, and rejects stale or unbound receipts before assembly stages assets.
 A sealed pair of same-version tarballs also proves that the build rejects a
 previously extracted tree after its archive pin changes. The package record additionally links the
 build receipt to the archive digest; assembly rejects a mismatched receipt or
-archive before staging. Controller revision provenance remains open.
+archive before staging. A clean checkout revision is now checked before and
+after building and matched by assembly. The sealed controller and package
+fixtures exercise these links. Native release qualification remains separate.
 
 - **Area:** release provenance
 - **Where:** buildsys/node.py:179; buildsys/release.py:46; buildsys/release.py:85

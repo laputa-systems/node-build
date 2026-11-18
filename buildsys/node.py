@@ -9,6 +9,7 @@ from buildlib import hashing, locks
 
 from buildsys import inputs, recipes
 from buildsys.product import NODE_VERSION
+from buildsys.release import clean_build_revision
 
 
 class BuildError(Exception):
@@ -245,13 +246,17 @@ def build(repo_root: Path, triple: str, jobs: int) -> Path:
     target_for_triple(triple)
     recipe = recipes.recipe_for_triple(triple)
     sources_lock_sha256 = hashing.sha256_file(repo_root / "sources.lock.json")
+    source_revision = clean_build_revision(repo_root)
     source = ensure_extracted(repo_root, triple)
     if needs_configure(source, repo_root, triple, recipe):
         run_configure(source, repo_root, triple, recipe)
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
     applied = apply_product_patches(source, triple)
-    write_receipt(
-        repo_root, triple, recipe, {"built_node": str(binary), "patches": applied}, sources_lock_sha256,
-    )
+    details = {"built_node": str(binary), "patches": applied}
+    if source_revision is not None:
+        if clean_build_revision(repo_root) != source_revision:
+            raise BuildError("checkout changed during build; rebuild")
+        details["source_revision"] = source_revision
+    write_receipt(repo_root, triple, recipe, details, sources_lock_sha256)
     return binary

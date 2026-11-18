@@ -78,7 +78,10 @@ class AssembleTest(unittest.TestCase):
         (build / "qualify").mkdir(parents=True)
         receipt = build / "build-receipt.json"
         receipt.write_text(
-            json.dumps({"sources_lock_sha256": hashing.sha256_file(self.work / "sources.lock.json")}),
+            json.dumps({
+                "sources_lock_sha256": hashing.sha256_file(self.work / "sources.lock.json"),
+                "source_revision": self.revision,
+            }),
             encoding="utf-8",
         )
         (build / "package-record.json").write_text(
@@ -142,6 +145,18 @@ class AssembleTest(unittest.TestCase):
                     release_assembler.assemble_all(self.work, (TRIPLE,))
                 self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
                 self.assertFalse((self.work / "build" / "assembly-tmp").exists())
+
+    def test_rejects_a_receipt_from_a_different_checkout_revision(self):
+        (self.work / "controller.txt").write_text("another committed controller")
+        subprocess.run(["git", "add", "controller.txt"], cwd=self.work, check=True)
+        subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "change controller"],
+            cwd=self.work, check=True,
+        )
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "build receipt checkout revision.*rebuild"):
+            release_assembler.assemble_all(self.work, (TRIPLE,))
+        self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+        self.assertFalse((self.work / "build" / "assembly-tmp").exists())
 
     def test_rejects_stale_or_unbound_lock_before_creating_release(self):
         lock = self.work / "sources.lock.json"

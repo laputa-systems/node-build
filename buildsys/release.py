@@ -34,6 +34,14 @@ def git_dirty(repo_root: Path) -> bool:
     return bool(completed.stdout.strip())
 
 
+def clean_build_revision(repo_root: Path) -> str | None:
+    try:
+        revision = git_revision(repo_root)
+        return None if git_dirty(repo_root) else revision
+    except (AssemblyError, FileNotFoundError):
+        return None
+
+
 def load_record(path: Path, what: str) -> dict:
     if not path.is_file():
         raise AssemblyError(f"missing {what}: {path} (run package/qualify first)")
@@ -47,7 +55,7 @@ def all_checks_ok(entries: object) -> bool:
     )
 
 
-def validate_triple(repo_root: Path, triple: str, lock_sha256: str) -> dict:
+def validate_triple(repo_root: Path, triple: str, lock_sha256: str, revision: str) -> dict:
     archive_name = product.archive_name(product.NODE_VERSION, triple)
     archive = repo_root / "dist" / triple / archive_name
     if not archive.is_file():
@@ -57,6 +65,8 @@ def validate_triple(repo_root: Path, triple: str, lock_sha256: str) -> dict:
     build_receipt = load_record(receipt_path, "build receipt")
     if build_receipt.get("sources_lock_sha256") != lock_sha256:
         raise AssemblyError(f"build receipt source lock missing or stale; rebuild: {triple}")
+    if build_receipt.get("source_revision") != revision:
+        raise AssemblyError(f"build receipt checkout revision missing or stale; rebuild: {triple}")
     archive_sha256 = hashing.sha256_file(archive)
     if package_record.get("sha256") != archive_sha256:
         raise AssemblyError(f"package record does not match packaged archive bytes; repackage: {triple}")
@@ -136,7 +146,7 @@ def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> dict:
         raise AssemblyError("refusing to assemble from a dirty checkout; commit first")
 
     lock_sha256 = hashing.sha256_file(repo_root / "sources.lock.json")
-    validated = {triple: validate_triple(repo_root, triple, lock_sha256) for triple in triples}
+    validated = {triple: validate_triple(repo_root, triple, lock_sha256, revision) for triple in triples}
     staging = repo_root / "build" / "assembly-tmp"
     if staging.exists():
         shutil.rmtree(staging)
