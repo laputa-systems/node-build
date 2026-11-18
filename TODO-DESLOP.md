@@ -1,5 +1,5 @@
 Prefix: DSLP
-Next: 8
+Next: 9
 
 Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/main/docs/campaigns/deslop.md), tier A). One agent works this file with the `deslop` skill: take the lowest-numbered open ticket whose area does not start with `Needs owner ·`. After DSLP-5, work the open P1 and P2 findings, then fill in `## Report` below.
 
@@ -23,16 +23,22 @@ The strict probes fell from nine to seven unsound returns and from 33 to
 both probes. The wider rules remain unadopted while the bootstrap lock,
 build record, and smoke paths still have type gaps.
 
+
+The second Types slice adopts ty's `unsound-return-statement` rule. A
+sealed configure-marker fixture showed that a valid JSON array caused an
+attribute error, so the controller now treats a non-object marker as stale.
+Toolchain version parsing returns the matched substring as a string, and
+the smoke runner declares the text result produced by `subprocess.run`.
+
+The original strict probe reported nine unsound returns. The post-wheel
+baseline at `8b53815` still reports seven with the adopted rule enabled.
+The final lint is clean. The missing-type-argument probe has 30 findings
+left from 33, and the unused-ignore and ANN401 probes found no qualifying
+witness. The 77-test pinned Alpine suite, including the musl host check,
+passed. The local Xcode and Clang version probes also passed.
+
 ## Tickets
 
-### DSLP-3 · P2 · Types: strict profile and typing findings
-
-- **Area:** deslop · types
-- **Where:** type checker and lint configuration; Python sources
-- **Problem:** The strict-profile candidates in the deslop skill's tools reference have not been measured here.
-- **Recommendation:** Run the deslop Types step. Accept: clean at the adopted profile, escape hatches not increased, witnesses recorded.
-- **Fix with:** deslop
-- **Effort:** M
 
 
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
@@ -71,5 +77,15 @@ build record, and smoke paths still have type gaps.
 - **Problem:** Assembly accepts empty product, smoke, and relocation lists because all() is true for empty lists, and accepts zero smoke checks as qualified. The benign fixture in docs/DIAGNOSE.md assembles and writes a manifest with no checks. The normal qualifier has not been shown to emit such a record.
 - **Recommendation:** Validate the qualification record's schema and required check coverage and counts before assembly, rejecting empty or incomplete records; exercise rejection with a sealed fixture.
 - **Fix with:** durable-state
+- **Effort:** M
+
+
+### DSLP-8 · P3 · Qualify remaining generic return and input shapes
+
+- **Area:** deslop · types
+- **Where:** buildsys/budgets.py; buildsys/comparison.py; buildsys/node.py; buildsys/release.py
+- **Problem:** The missing-type-argument candidate still reports 30 declarations. Their valid JSON and controller shapes need separate evidence before this setting qualifies.
+- **Recommendation:** Work one producer and its consumers at a time, preserve the accepted JSON forms and add a negative witness where precise types reject an actual bad program.
+- **Fix with:** typing-audit
 - **Effort:** M
 

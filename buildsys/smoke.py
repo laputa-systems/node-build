@@ -27,7 +27,9 @@ EXPECTED_IDENTITY = {
 }
 
 
-def run_node(node: Path, args: list[str], cwd: Path, extra_env: dict | None = None) -> subprocess.CompletedProcess:
+def run_node(
+    node: Path, args: list[str], cwd: Path, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     import os
 
     env = dict(os.environ)
