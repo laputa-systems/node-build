@@ -378,6 +378,26 @@ All 12 comparison cases, Ruff and ty passed. The full macOS suite
 reported one host lock mismatch, reproduced at `e287fb4`. The host
 has Xcode and SDK 27.2 against the locked Xcode 27.1 and SDK 27.0.
 
+**Release controller inventory**
+
+At `b9fc2374026027c77ec74c44a0ff825bad7ca372`, the full
+`buildsys.release.*` selection caught 350 of 395 identities on native
+macOS ARM64. The 41 survivors were in Git probes (31), record loading
+(2), target validation (7) and multi-target assembly (1). The four
+uncovered identities belonged to the unused single-target Python
+wrapper. The CLI has called `assemble_all` for both the single-target
+and default forms since `d294843`. The controller is an unpackaged
+project and the wrapper had no callers in the tree. Removing it leaves
+the 32 release cases passing, including standard assembly for one and
+two targets, and Ruff and ty clean.
+
+Reproduce the census with the preceding archive and locked Buildlib
+wheel recipe. Set `only_mutate = ["buildsys/release.py"]`,
+`also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", ".github"]`,
+and select `tests/test_release.py` and `buildsys.release.*`. Use Python
+3.15.2, mutmut 3.8.1 and pytest 9.2.0 with one mutation worker. The
+41 survivors still need dispositions under DSLP-4.
+
 ## Tickets
 
 
