@@ -2,7 +2,7 @@ PYTHON ?= python3
 TARGET ?= aarch64-apple-darwin
 JOBS ?= 10
 
-.PHONY: test build verify package repro controller-test fetch doctor clean lint
+.PHONY: test coverage build verify package repro controller-test fetch doctor clean lint
 
 fetch:
 	$(PYTHON) build.py fetch --target $(TARGET)
@@ -30,6 +30,12 @@ controller-test:
 clean:
 	rm -rf build dist .venv .ruff_cache .work/tmp
 	find . -path './.git' -prune -o -path './.work' -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
+
+coverage:
+	mkdir -p .work/coverage
+	uv run --frozen coverage run build.py controller-test
+	uv run --frozen coverage report
+	uv run --frozen coverage json -o .work/coverage/report.json
 
 lint:
 	uv run --frozen ruff check build.py buildsys tests
