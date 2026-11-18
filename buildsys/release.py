@@ -141,10 +141,6 @@ def stage_triple(
     release.write_manifest(release_dir, manifest)
 
 
-def assemble(repo_root: Path, triple: str) -> dict:
-    return assemble_all(repo_root, (triple,))
-
-
 def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> dict:
     from buildsys.targets import target_for_triple
 
