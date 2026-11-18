@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from buildlib import locks
+from buildlib import hashing, locks
 
 from buildsys import inputs, recipes
 from buildsys.product import NODE_VERSION
@@ -190,7 +190,9 @@ def source_record(item: locks.Input) -> dict:
     return {key: value for key, value in record.items() if value is not None}
 
 
-def write_receipt(repo_root: Path, triple: str, recipe: dict, extra: dict) -> Path:
+def write_receipt(
+    repo_root: Path, triple: str, recipe: dict, extra: dict, sources_lock_sha256: str,
+) -> Path:
     from buildsys.targets import target_for_triple
 
     wanted = target_for_triple(triple)
@@ -222,6 +224,9 @@ def write_receipt(repo_root: Path, triple: str, recipe: dict, extra: dict) -> Pa
         "builder_python": ".".join(str(part) for part in sys.version_info[:3]),
     }
     receipt.update(extra)
+    if hashing.sha256_file(repo_root / "sources.lock.json") != sources_lock_sha256:
+        raise BuildError("source lock changed during build; rebuild")
+    receipt["sources_lock_sha256"] = sources_lock_sha256
     destination = work_dir(repo_root, triple) / "build-receipt.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     inputs.render_json(receipt, destination)
@@ -233,11 +238,14 @@ def build(repo_root: Path, triple: str, jobs: int) -> Path:
 
     target_for_triple(triple)
     recipe = recipes.recipe_for_triple(triple)
+    sources_lock_sha256 = hashing.sha256_file(repo_root / "sources.lock.json")
     source = ensure_extracted(repo_root, triple)
     if needs_configure(source, repo_root, triple, recipe):
         run_configure(source, repo_root, triple, recipe)
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
     applied = apply_product_patches(source, triple)
-    write_receipt(repo_root, triple, recipe, {"built_node": str(binary), "patches": applied})
+    write_receipt(
+        repo_root, triple, recipe, {"built_node": str(binary), "patches": applied}, sources_lock_sha256,
+    )
     return binary

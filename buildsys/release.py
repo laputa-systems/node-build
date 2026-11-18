@@ -47,13 +47,15 @@ def all_checks_ok(entries: object) -> bool:
     )
 
 
-def validate_triple(repo_root: Path, triple: str, revision: str) -> dict:
+def validate_triple(repo_root: Path, triple: str, lock_sha256: str) -> dict:
     archive_name = product.archive_name(product.NODE_VERSION, triple)
     archive = repo_root / "dist" / triple / archive_name
     if not archive.is_file():
         raise AssemblyError(f"missing packaged archive: {archive}")
     package_record = load_record(repo_root / "build" / triple / "package-record.json", "package record")
     build_receipt = load_record(repo_root / "build" / triple / "build-receipt.json", "build receipt")
+    if build_receipt.get("sources_lock_sha256") != lock_sha256:
+        raise AssemblyError(f"build receipt source lock missing or stale; rebuild: {triple}")
     qualify_record = load_record(
         repo_root / "build" / triple / "qualify" / "qualify-record.json", "qualify record"
     )
@@ -127,8 +129,8 @@ def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> dict:
     if git_dirty(repo_root):
         raise AssemblyError("refusing to assemble from a dirty checkout; commit first")
 
-    validated = {triple: validate_triple(repo_root, triple, revision) for triple in triples}
     lock_sha256 = hashing.sha256_file(repo_root / "sources.lock.json")
+    validated = {triple: validate_triple(repo_root, triple, lock_sha256) for triple in triples}
     staging = repo_root / "build" / "assembly-tmp"
     if staging.exists():
         shutil.rmtree(staging)

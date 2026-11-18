@@ -46,7 +46,10 @@ class AssembleTest(unittest.TestCase):
         (build / "package-record.json").write_text(
             json.dumps({"product_checks": checks, "hardening": {}}), encoding="utf-8"
         )
-        (build / "build-receipt.json").write_text("{}", encoding="utf-8")
+        (build / "build-receipt.json").write_text(
+            json.dumps({"sources_lock_sha256": hashing.sha256_file(self.work / "sources.lock.json")}),
+            encoding="utf-8",
+        )
         (build / "qualify" / "qualify-record.json").write_text(
             json.dumps({
                 "sha256": hashing.sha256_file(archive),
@@ -86,6 +89,23 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(names, sorted(names))
         self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
+
+    def test_rejects_stale_or_unbound_lock_before_creating_release(self):
+        lock = self.work / "sources.lock.json"
+        lock.write_text('{"schema_version": 1, "revision": "new"}\n', encoding="utf-8")
+        subprocess.run(["git", "add", "sources.lock.json"], cwd=self.work, check=True)
+        subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "change lock"],
+            cwd=self.work, check=True,
+        )
+        receipt = self.work / "build" / TRIPLE / "build-receipt.json"
+        for record in (json.loads(receipt.read_text(encoding="utf-8")), {}):
+            with self.subTest(record=record):
+                receipt.write_text(json.dumps(record), encoding="utf-8")
+                with self.assertRaisesRegex(release_assembler.AssemblyError, "source lock.*rebuild"):
+                    release_assembler.assemble_all(self.work, (TRIPLE,))
+                self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
+                self.assertFalse((self.work / "build" / "assembly-tmp").exists())
 
     def test_rejects_incomplete_qualification_before_creating_release(self):
         path = self.work / "build" / TRIPLE / "qualify" / "qualify-record.json"

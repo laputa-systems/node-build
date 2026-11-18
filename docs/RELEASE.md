@@ -17,7 +17,9 @@ Each supported triple produces:
 `SHA256SUMS` covers every other asset, sorted by file name. Local builds write the archive to
 `dist/<triple>/` with the same name; `build.py assemble` copies the archives, writes the
 manifests and `SHA256SUMS` into `dist/release/`, and refuses dirty checkouts, unqualified
-archives, and an existing `dist/release/`.
+archives, receipts missing or mismatching the current source lock, and an existing
+`dist/release/`. Older unbound receipts require a rebuild. The build checks that the
+source lock remains unchanged before writing its receipt.
 
 ## Jobs
 

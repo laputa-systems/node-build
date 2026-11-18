@@ -261,6 +261,37 @@ class PatchTest(unittest.TestCase):
                 shutil.rmtree(probe)
 
 
+class BuildReceiptTest(unittest.TestCase):
+    def test_build_binds_lock_and_rejects_changes_before_writing_receipt(self):
+        import shutil
+
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            for name in ("sources.lock.json", "bootstrap.lock.json"):
+                shutil.copyfile(REPO_ROOT / name, root / name)
+            triple = "aarch64-apple-darwin"
+            lock = root / "sources.lock.json"
+            receipt = root / "build" / triple / "build-receipt.json"
+            source = root / "source"
+            binary = source / "node"
+            with (
+                patch.object(node, "ensure_extracted", return_value=source),
+                patch.object(node, "needs_configure", return_value=False),
+                patch.object(node, "run_make") as make,
+                patch.object(node, "built_node", return_value=binary),
+                patch.object(node, "apply_product_patches", return_value=[]),
+            ):
+                node.build(root, triple, 1)
+                original = receipt.read_text(encoding="utf-8")
+                self.assertEqual(
+                    json.loads(original)["sources_lock_sha256"], hashlib.sha256(lock.read_bytes()).hexdigest()
+                )
+                make.side_effect = lambda *args: lock.write_text(lock.read_text() + "\n")
+                with self.assertRaisesRegex(node.BuildError, "source lock changed during build"):
+                    node.build(root, triple, 1)
+                self.assertEqual(receipt.read_text(encoding="utf-8"), original)
+
+
 class ConfigureMarkerTest(unittest.TestCase):
     def test_reconfigures_when_marker_is_not_an_object(self):
         with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
