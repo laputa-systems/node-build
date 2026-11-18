@@ -270,6 +270,32 @@ exact section or field error before inspecting the host. The ordinary
 suite still checks the tracked lock on the pinned Alpine builder.
 The lock's versions and supported targets are unchanged.
 
+At `2b97433e023dc638d2cc2fc8de8720e8665d76fd`, two fresh
+Doctor admission runs selected the same 52 `load_bootstrap_lock` and
+`validate_bootstrap_lock` mutants (mutmut 3.8.1 and pytest 9.2.0).
+The base caught 46 and missed six. The candidate catches all 52.
+The added cases distinguish a missing section, a missing deployment
+target and a rejected lock schema while preserving the file diagnostic.
+
+Use the preceding Node recipe with this base, `only_mutate =
+["buildsys/bootstrap.py"]`, `also_copy = ["build.py",
+"bootstrap.lock.json", "sources.lock.json"]`, and pytest selection
+`tests/test_controller.py -k test_doctor_rejects_malformed_lock_sections_before_inspecting_host`.
+Run the two qualified function patterns and compare the resulting
+`mutants/buildsys/bootstrap.py.meta` records. Both commands exited
+zero within 120 seconds with the same generated production files.
+
+The last assembly case also has a case-sensitive control. Copy an
+exact archive of the checked revision into the pinned Alpine
+container's own filesystem. Run
+`python3 -m unittest tests.test_release.AssembleTest.test_assembly_lists_both_targets_and_all_checksum_assets`
+using the unchanged controller files. Change only the
+`assemble_all` lockfile string to `SOURCES.LOCK.JSON` and rerun
+with a fresh `PYTHONPYCACHEPREFIX`. The control exits 1 with
+`FileNotFoundError` for the uppercase lock path. This resolves the
+single macOS casefold survivor from the 64-identity assembly scope.
+No new native release ran.
+
 ## Tickets
 
 
