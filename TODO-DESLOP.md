@@ -237,6 +237,29 @@ concurrent attempts each reached the checksum barrier. Exactly one published
 a complete checksum-verified release and both cleared their temporary staging.
 All 94 pinned Alpine tests plus Ruff and ty passed.
 
+Assembly command mutation at `d021381ccfb624e3b02d31c0058c526582715743`
+selected the same 64 `assemble_all` identities in two fresh macOS seals.
+The original caught 45 and missed 19. The candidate caught 63 and missed
+one. ID 16 uppercases `sources.lock.json`; both names resolve to the same
+file on this volume. Its mutation outcome on Linux is unmeasured.
+
+The command tests exercise empty and invalid targets, sorted multi-target
+release output, verified checksums, cancellation by a rename failure, and
+a competing publication. A deterministic callback creates a nonempty
+competing destination, and the real rename then fails. Assembly leaves
+the competing file intact and removes its private staging tree. Changing
+the losing assembler's diagnostic to `AssemblyError(None)` made that
+focused test exit 1 on the message assertion. The independent two-thread
+test runs in ordinary CI. All 102 pinned Alpine controller tests and
+Ruff and ty passed.
+
+Use the staged-triple recipe with this new base and a fresh scratch pair.
+Set `pytest_add_cli_args = ["-k", "AssembleTest and not concurrent_assemblers"]`
+and select `buildsys.release.x_assemble_all__mutmut_*`. Both runs exited
+zero within 120 seconds. The production mutation files compare byte
+for byte and the selected result maps account for all 64 identities.
+Native release qualification and the wider Tests gate remain open.
+
 ## Tickets
 
 
