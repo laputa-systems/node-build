@@ -15,7 +15,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from buildlib import locks
 
 import buildsys
-from buildsys import bootstrap, inputs, product, recipes, targets
+from buildsys import bootstrap, inputs, node, product, recipes, targets
 
 
 class TargetTest(unittest.TestCase):
@@ -259,6 +259,24 @@ class PatchTest(unittest.TestCase):
                     node_driver.apply_product_patches(probe, triple)
                 import shutil
                 shutil.rmtree(probe)
+
+
+class ConfigureMarkerTest(unittest.TestCase):
+    def test_reconfigures_when_marker_is_not_an_object(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            triple = "aarch64-apple-darwin"
+            recipe = {"configure": ["--prefix=/usr"]}
+            source = root / "source"
+            source.mkdir()
+            (source / "config.mk").touch()
+            marker = node.configured_marker(root, triple)
+            marker.parent.mkdir(parents=True)
+            marker.write_text(json.dumps({"recipe_sha256": node.recipe_fingerprint(recipe)}))
+            self.assertFalse(node.needs_configure(source, root, triple, recipe))
+
+            marker.write_text("[]")
+            self.assertTrue(node.needs_configure(source, root, triple, recipe))
 
 
 class BootstrapTest(unittest.TestCase):
