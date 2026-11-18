@@ -10,9 +10,9 @@ compile=$!
 log="build/$target/make.log"
 while kill -0 "$compile" 2>/dev/null; do
     sleep 60
-    uptime
+    uptime || :
     ps -o pid,ppid,time,stat,comm -A |
-        awk 'NR == 1 || $5 ~ /(^|\/)(clang[^/]*|cc1plus|g?make|ld[^/]*|node)$/'
+        awk 'NR == 1 || $5 ~ "(^|/)(clang[^/]*|cc1plus|g?make|ld[^/]*|node)$"' || :
     if [ -s "$log" ]; then
         wc -c "$log"
         tail -n 2 "$log"
