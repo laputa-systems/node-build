@@ -8,7 +8,7 @@ relocatable, PIE-hardened installations for `aarch64-apple-darwin` and
 
 ```text
 make fetch|doctor|build|package|verify|repro TARGET=<triple>
-make controller-test
+make test
 make lint
 make clean
 ```
@@ -33,6 +33,17 @@ python3 build.py controller-test
 `assemble` defaults to all supported triples and refuses dirty checkouts
 and unqualified archives. Acquisition (`fetch`) may use the
 network; compilation runs from verified cached inputs only.
+
+## Verification
+
+- `make test` calls `make controller-test`. The pinned x86_64 Alpine release environment, with Git for fixture repositories, passed all 74 tests on both runs. Under local x86_64 emulation the runs took 0.81 s and 0.85 s after provisioning.
+- The hosted Ubuntu ARM64 test job exercises 73 cases and skips the host lock check, which requires musl on Linux. The pinned Alpine runs exercise that check.
+- `make lint` runs Ruff and ty. It passed in 0.67 s on the first macOS ARM64 run and 0.08 s warm.
+- `tests/test_controller.py` checks target selection, configure recipes, toolchain and source locks, input handling, and patch application. The macOS host probe requires the Xcode and SDK versions in `bootstrap.lock.json`.
+- `tests/test_release.py` checks assembly, checksums and clean-checkout requirements for the release workflow and `dl` consumer. The workflow checks built archives and published-asset layout.
+- `tests/test_product.py` and `tests/test_elf.py` cover Mach-O and ELF identity, relocation, and hardening checks. `make verify` checks the actual artifact. `tests/test_help_footer.py` covers the owned help footer.
+- The full controller CLI argument and exit contract has no process-level test in `make test`. `tests/test_compare.py` exercises the result comparison logic. The native runtime comparison workload is described in [Performance](docs/PERFORMANCE.md).
+- `make build verify` and `make repro` are separate native artifact checks. The sealed controller checks need neither a complete Node build nor publication.
 
 ## Invariants
 
