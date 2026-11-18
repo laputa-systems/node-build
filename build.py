@@ -32,7 +32,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return _fail(str(error))
     try:
         lock = bootstrap.load_bootstrap_lock(BOOTSTRAP_LOCK)
-    except ValueError as error:
+    except (TypeError, ValueError) as error:
         return _fail(str(error))
     if wanted.is_linux:
         from buildsys import recipes as recipe_mod
