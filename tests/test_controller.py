@@ -404,9 +404,20 @@ class BootstrapTest(unittest.TestCase):
                 patch.object(bootstrap, "current_identity", side_effect=AssertionError("inspected macOS")),
                 patch.object(bootstrap, "linux_current_identity", side_effect=AssertionError("inspected Linux")),
             ):
-                for section, replacement, message in cases:
-                    with self.subTest(section=section):
-                        lock.write_text(json.dumps({**base, section: replacement}))
+                documents = [
+                    (section, {**base, section: replacement}, message)
+                    for section, replacement, message in cases
+                ]
+                documents.extend((
+                    ("missing section", {name: value for name, value in base.items() if name != "linux_baseline"},
+                     "bootstrap lock missing section: linux_baseline"),
+                    ("missing field", {**base, "linux_baseline": {"cflag": "-march=x86-64-v2"}},
+                     "bootstrap lock linux_baseline missing: deployment_target"),
+                    ("unsupported schema", {**base, "schema_version": 9}, f"{lock}: schema_version must be 1, found 9"),
+                ))
+                for name, document, message in documents:
+                    with self.subTest(case=name):
+                        lock.write_text(json.dumps(document))
                         with redirect_stderr(io.StringIO()) as stderr, redirect_stdout(io.StringIO()) as stdout:
                             status = build.main(["doctor", "--target", "x86_64-unknown-linux-musl"])
                         self.assertEqual(status, 2)
