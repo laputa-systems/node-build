@@ -50,6 +50,55 @@ fixtures, release assembly and artifact validation. Native builds and
 published artifact smoke have separate entry points. Direct CLI coverage
 and the mutation checks remain open.
 
+The assembly record slice at `79fb67417304aa304efcf9705fd18dae28e8b62b`
+used mutmut 3.8.1 and pytest 9.2.0 on macOS arm64, Python 3.15.2, on a
+case-insensitive filesystem. Two independent copies selected every mutant in
+`all_checks_ok` (10) and `validate_triple` (123); their identity sets matched
+exactly. Baseline: 123 killed, 10 survived. With the record fixtures in
+`tests/test_release.py`: 124 killed, 9 survived. Both had zero no-tests,
+timeouts, suspicious, skipped, type-check kills, interrupted, unviable, or
+uncompleted selected mutants. Mutant 87 in `validate_triple`, which removes
+the qualification digest comparison, changed from survived to killed.
+The mutation execution rates were 2.06 and 1.75 per second, respectively;
+both complete runs exited 0 under the 120-second cap. These are not a release
+gate or a whole-controller result.
+
+The independent missing-archive fixture then caught mutant 13, which removes
+its diagnostic. The eight remaining `validate_triple` identities altered path
+case (11, 23, 25, 33, 35, 76, 78 and 80). The disposable case-sensitive Linux
+ARM64 trial at `1a45eb7` caught all 133 identities with no surviving or missing
+outcomes. The complete 90-test suite passed on pinned Alpine. Other release and
+producer boundaries remain open.
+[Hosted run](https://github.com/laputa-systems/node-build/actions/runs/44307096562) A hand-injected change from `is True` to
+`== True` in `all_checks_ok` made the new package-record subtest with
+`{"ok": 1}` fail because assembly did not reject it. The unmodified release
+suite passed 19 tests and `make lint` passed.
+
+To reproduce from the base and a checkout containing these tests, with an empty
+`.work/tmp` and an installed Python 3.15:
+
+```sh
+mkdir -p .work/tmp/baseline .work/tmp/candidate
+uv venv --python 3.15 .work/venv
+uv pip install --python .work/venv/bin/python --index-url https://pypi.17166969.xyz/simple 'mutmut==3.8.1' 'pytest==9.2.0' 'laputa-buildlib==0.1.0'
+git archive 79fb67417304aa304efcf9705fd18dae28e8b62b | tar -x -C .work/tmp/baseline
+git archive 79fb67417304aa304efcf9705fd18dae28e8b62b | tar -x -C .work/tmp/candidate
+cp tests/test_release.py .work/tmp/candidate/tests/test_release.py
+for d in .work/tmp/baseline .work/tmp/candidate; do
+  printf '\n[tool.mutmut]\nsource_paths = ["buildsys/"]\nonly_mutate = ["buildsys/release.py"]\npytest_add_cli_args_test_selection = ["tests/test_release.py"]\nalso_copy = [".github/"]\n' >> "$d/pyproject.toml"
+done
+for d in baseline candidate; do
+  (cd ".work/tmp/$d" && mkdir -p .work/tmp && TMPDIR="$PWD/.work/tmp" timeout 120 cpu-guard --cores 2 -- ../../venv/bin/mutmut run --max-children 1 'buildsys.release.x_all_checks_ok__mutmut_*' 'buildsys.release.x_validate_triple__mutmut_*')
+done
+```
+
+Compare the selected keys and values in each `mutants/buildsys/release.py.meta`
+`exit_code_by_key` map; the progress denominator also includes unselected
+mutants in the file and is not the selected count. The precise fault control
+can be repeated in a third copy by replacing `entry.get("ok") is True` with
+`entry.get("ok") == True` and running `python -m pytest -q
+tests/test_release.py::AssembleTest::test_rejects_bad_checks_in_each_record_section`.
+
 
 Release assembly now requires nonempty product, smoke, and relocation
 checks with explicit successful results. Smoke counts must match the
