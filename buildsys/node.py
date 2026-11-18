@@ -253,7 +253,11 @@ def build(repo_root: Path, triple: str, jobs: int) -> Path:
     run_make(source, recipe, jobs, work_dir(repo_root, triple) / "make.log")
     binary = built_node(source)
     applied = apply_product_patches(source, triple)
-    details = {"built_node": str(binary), "patches": applied}
+    details = {
+        "built_node": str(binary),
+        "built_node_sha256": hashing.sha256_file(binary),
+        "patches": applied,
+    }
     if source_revision is not None:
         if clean_build_revision(repo_root) != source_revision:
             raise BuildError("checkout changed during build; rebuild")

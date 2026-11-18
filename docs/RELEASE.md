@@ -22,7 +22,8 @@ archives, receipts missing or mismatching the current source lock, and an existi
 source lock remains unchanged before writing its receipt. An extracted source tree
 without a matching archive digest requires a clean build, even if the version
 is unchanged. Packaging binds its record to the build receipt and archive bytes.
-Assembly checks both digests before staging assets. A release build must also
+Packaging checks that the installed binary matches the digest in its build receipt.
+Assembly checks the receipt and archive digests before staging assets. A release build must also
 record the unchanged clean Git revision that assembly will use. Local builds
 from dirty trees or without Git can still run and produce development packages.
 

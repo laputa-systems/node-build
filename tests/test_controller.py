@@ -313,6 +313,8 @@ class BuildReceiptTest(unittest.TestCase):
             triple = "aarch64-apple-darwin"
             receipt = root / "build" / triple / "build-receipt.json"
             source = root / "build" / "source"
+            source.mkdir(parents=True)
+            (source / "node").write_bytes(b"node binary")
             stray = root / "stray.txt"
             with (
                 patch.object(node, "ensure_extracted", return_value=source),
@@ -344,6 +346,8 @@ class BuildReceiptTest(unittest.TestCase):
             receipt = root / "build" / triple / "build-receipt.json"
             source = root / "source"
             binary = source / "node"
+            source.mkdir()
+            binary.write_bytes(b"node binary")
             with (
                 patch.object(node, "ensure_extracted", return_value=source),
                 patch.object(node, "needs_configure", return_value=False),
@@ -354,6 +358,7 @@ class BuildReceiptTest(unittest.TestCase):
                 node.build(root, triple, 1)
                 original = receipt.read_text(encoding="utf-8")
                 self.assertNotIn("source_revision", json.loads(original))
+                self.assertEqual(json.loads(original)["built_node_sha256"], hashlib.sha256(b"node binary").hexdigest())
                 self.assertEqual(
                     json.loads(original)["sources_lock_sha256"], hashlib.sha256(lock.read_bytes()).hexdigest()
                 )

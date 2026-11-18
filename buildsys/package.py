@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -109,9 +112,20 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     build_receipt = repo_root / "build" / triple / "build-receipt.json"
     if not build_receipt.is_file():
         raise PackageError(f"missing build receipt; build first: {build_receipt}")
-    receipt_sha256 = hashing.sha256_file(build_receipt)
+    receipt_bytes = build_receipt.read_bytes()
+    receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
+    try:
+        receipt: object = json.loads(receipt_bytes)
+    except ValueError as error:
+        raise PackageError(f"invalid build receipt: {build_receipt}: {error}") from error
+    binary_digest: object = receipt.get("built_node_sha256") if isinstance(receipt, dict) else None
+    if not isinstance(binary_digest, str) or re.fullmatch(r"[0-9a-f]{64}", binary_digest) is None:
+        raise PackageError(f"build receipt has no node binary digest; rebuild: {build_receipt}")
     stage = stage_dir(repo_root, triple)
     install_root = install_to_stage(source, stage, recipe)
+    installed_node = install_root / "bin" / "node"
+    if not installed_node.is_file() or hashing.sha256_file(installed_node) != binary_digest:
+        raise PackageError(f"installed node does not match build receipt; rebuild: {installed_node}")
     shutil.copyfile(source / "LICENSE", install_root / "LICENSE")
     removed = prune_to_contract(install_root)
     report = write_hardening_report(
