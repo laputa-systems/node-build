@@ -16,12 +16,15 @@ class AssemblyError(Exception):
 
 def git_revision(repo_root: Path) -> str:
     completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo_root,
+        ["git", "rev-parse", "--show-toplevel", "HEAD"], cwd=repo_root,
         capture_output=True, text=True, timeout=60, check=False,
     )
     if completed.returncode != 0:
         raise AssemblyError("not a git checkout")
-    return completed.stdout.strip()
+    checkout, revision = completed.stdout.rstrip("\n").rsplit("\n", 1)
+    if not Path(checkout).samefile(repo_root):
+        raise AssemblyError("not a git checkout root")
+    return revision
 
 
 def git_dirty(repo_root: Path) -> bool:

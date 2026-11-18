@@ -307,6 +307,9 @@ class BuildReceiptTest(unittest.TestCase):
             for args in (["init", "-q"], ["add", "."], ["commit", "-qm", "fixture"]):
                 subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True)
             revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            nested_archive = root / "build" / "source-archive"
+            nested_archive.mkdir(parents=True)
+            self.assertIsNone(node.clean_build_revision(nested_archive))
             triple = "aarch64-apple-darwin"
             receipt = root / "build" / triple / "build-receipt.json"
             source = root / "build" / "source"
@@ -350,6 +353,7 @@ class BuildReceiptTest(unittest.TestCase):
             ):
                 node.build(root, triple, 1)
                 original = receipt.read_text(encoding="utf-8")
+                self.assertNotIn("source_revision", json.loads(original))
                 self.assertEqual(
                     json.loads(original)["sources_lock_sha256"], hashlib.sha256(lock.read_bytes()).hexdigest()
                 )
