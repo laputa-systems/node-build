@@ -410,6 +410,13 @@ using the same fallback as for an unavailable checkout. Reproduce
 with `python -m unittest tests.test_release.AssembleTest.test_git_probe_timeout_stops_assembly_and_leaves_build_provenance_unbound`.
 All 33 release cases, Ruff and ty passed.
 
+`assemble_all` now declares the three result fields used by the CLI.
+The release directory stays a string, with ordered lists for targets
+and assets. A scratch annotation using `AssemblyResult` rejects
+`{"release_dir": "dist/release", "targets": 1, "assets": []}`
+under `ty check`. The existing assembly cases still check asset names,
+ordering and manifests. The 33 release cases and both linters passed.
+
 ## Tickets
 
 
@@ -441,7 +448,7 @@ All 33 release cases, Ruff and ty passed.
 
 - **Area:** deslop · types
 - **Where:** buildsys/node.py; buildsys/release.py
-- **Problem:** The missing-type-argument candidate has open declarations in these modules. The comparison report has a checked shape and negative witness. The remaining JSON and controller shapes need separate evidence.
+- **Problem:** The missing-type-argument candidate has open declarations in these modules. The comparison and assembly results have checked shapes and negative witnesses. Parsed release records and the build controller need separate evidence.
 - **Recommendation:** Work one producer and its consumers at a time, preserve the accepted JSON forms and add a negative witness where precise types reject an actual bad program.
 - **Fix with:** typing-audit
 - **Effort:** M
