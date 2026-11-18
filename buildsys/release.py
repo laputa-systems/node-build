@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from buildlib import hashing, release
@@ -112,6 +113,9 @@ def stage_triple(
     qualify_record = validated["qualify_record"]
     release_archive = release_dir / product.archive_name(product.NODE_VERSION, triple)
     shutil.copyfile(archive, release_archive)
+    staged_sha256 = hashing.sha256_file(release_archive)
+    if staged_sha256 != package_record["sha256"]:
+        raise AssemblyError(f"packaged archive changed during staging: {triple}")
     manifest = release.build_manifest(
         product=product.PRODUCT,
         version=product.NODE_VERSION,
@@ -120,7 +124,7 @@ def stage_triple(
         sources_lock_sha256=lock_sha256,
         extra={
             "archive": release_archive.name,
-            "sha256": hashing.sha256_file(release_archive),
+            "sha256": staged_sha256,
             "size": release_archive.stat().st_size,
             "source": build_receipt.get("source", {}),
             "toolchain": build_receipt.get("toolchain", {}),
@@ -154,18 +158,20 @@ def assemble_all(repo_root: Path, triples: tuple[str, ...]) -> dict:
 
     lock_sha256 = hashing.sha256_file(repo_root / "sources.lock.json")
     validated = {triple: validate_triple(repo_root, triple, lock_sha256, revision) for triple in triples}
-    staging = repo_root / "build" / "assembly-tmp"
-    if staging.exists():
-        shutil.rmtree(staging)
-    staging.mkdir(parents=True)
-    for triple in triples:
-        stage_triple(validated[triple], triple, staging, revision, lock_sha256)
-    release.write_sha256sums(staging)
-
     final_dir = repo_root / "dist" / product.RELEASE_DIRNAME
     if final_dir.exists():
         raise AssemblyError(f"refusing to overwrite existing release directory: {final_dir}")
-    staging.rename(final_dir)
+    with tempfile.TemporaryDirectory(prefix="assembly-tmp-", dir=repo_root / "build") as scratch:
+        staging = Path(scratch)
+        for triple in triples:
+            stage_triple(validated[triple], triple, staging, revision, lock_sha256)
+        release.write_sha256sums(staging)
+        try:
+            staging.rename(final_dir)
+        except OSError as error:
+            if final_dir.exists():
+                raise AssemblyError(f"refusing to overwrite existing release directory: {final_dir}") from error
+            raise
     return {
         "release_dir": str(final_dir),
         "targets": sorted(triples),

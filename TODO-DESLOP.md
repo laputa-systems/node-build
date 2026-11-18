@@ -187,6 +187,15 @@ Assembly now reports the offending record and rejects a missing, empty or
 non-boolean package check before publishing output. All 87 pinned Alpine
 controller tests passed.
 
+
+At `cb208c8`, replacing a qualified fixture after validation made assembly
+publish the replacement. The copied archive is now checked against the earlier
+qualified digest. Each attempt stages in its own temporary directory. The
+controlled replacement fails with no output and a valid retry succeeds. Two
+concurrent attempts each reached the checksum barrier. Exactly one published
+a complete checksum-verified release and both cleared their temporary staging.
+All 94 pinned Alpine tests plus Ruff and ty passed.
+
 ## Tickets
 
 
