@@ -42,3 +42,13 @@ lint:
 	uv run --frozen ty check build.py buildsys tests
 
 test: controller-test
+
+.PHONY: bench bench-check bench-list
+bench:
+	$(PYTHON) -m buildsys.bench run $(BENCH_ARGS)
+
+bench-check:
+	$(PYTHON) -m buildsys.bench check $(BENCH_ARGS)
+
+bench-list:
+	$(PYTHON) -m buildsys.bench list

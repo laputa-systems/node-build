@@ -1,9 +1,13 @@
 Prefix: DSLP
-Next: 9
+Next: 12
 
 Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/main/docs/campaigns/deslop.md), tier A). One agent works this file with the `deslop` skill: take the lowest-numbered open ticket whose area does not start with `Needs owner ·`. After DSLP-5, work the open P1 and P2 findings, then fill in `## Report` below.
 
 ## Report
+
+Bench adds a tiered entrypoint and records coverage and operability gaps in
+DSLP-9 through DSLP-11. Native builds and Scenario comparisons remain manual;
+archive size checks require an existing packaged artifact.
 
 Dead code (DSLP-5) is done at base `043c8cff201b67516d048ab0e0ed2d186890c5a6`. Ruff F401/F841 pass in `make lint`. Vulture 2.16 at 60% reported 17 names in `buildsys/` and `build.py`. Five were removed: `STAGED_BINDIR`, `STAGED_NODE`, `STAGED_INCLUDEDIR`, `STAGED_LIBDIR` and `LICENSE_NAME` in `buildsys/product.py`. Each had no reference in the repository, `.github/workflows`, the Makefile or tests, and `buildsys` is not imported outside this repository; the `dl` consumer reads archives, not this module. The other 12 are retained as discovery-only false positives: nine TypedDict fields and two `build_python` dataclass fields are serialized record and report fields, and `expected_release_assets` is the release-asset oracle used by controller and release tests. Vulture stays out of `make lint` because a whitelist would need more than five entries. The former single-target `assemble` wrapper was already removed by `f10806e`. Deptry 0.25.1 finds no dependency issues with `--package-module-name-map laputa-buildlib=buildlib`; without it, it misreads the import name. After the removal, the locked environment ran 174 tests with only the recorded host Xcode/SDK lock mismatch failing, as on base, and Ruff and ty passed.
 
@@ -129,6 +133,15 @@ for the controller fixtures or a new artifact qualification at this revision.
 
 
 
+### DSLP-9 · P2 · Cover representative runtime and build regressions
+
+- **Area:** deslop · bench
+- **Where:** buildsys/benchmarks.py; buildsys/comparison.py; docs/PERFORMANCE.md
+- **Problem:** Unproven: five startup and synthetic JSON samples compare against upstream rather than an accepted prior build, and no build-time gate exists. User-visible regressions can be missed.
+- **Recommendation:** Define representative completed-work runtime and native build comparisons against an accepted anchor, with variance and host validity before proposing gates.
+- **Fix with:** refactor-benchmarks
+- **Effort:** L
+
 ### DSLP-8 · P3 · Qualify remaining generic return and input shapes
 
 - **Area:** deslop · types
@@ -136,4 +149,24 @@ for the controller fixtures or a new artifact qualification at this revision.
 - **Problem:** The missing-type-argument candidate has open declarations in these modules. The comparison and assembly results have checked shapes and negative witnesses. Parsed release records and the build controller need separate evidence.
 - **Recommendation:** Work one producer and its consumers at a time, preserve the accepted JSON forms and add a negative witness where precise types reject an actual bad program.
 - **Fix with:** typing-audit
+- **Effort:** M
+
+
+### DSLP-10 · P3 · Add attribution and provenance for performance runs
+
+- **Area:** deslop · bench
+- **Where:** buildsys/comparison.py; buildsys/benchmarks.py; docs/PERFORMANCE.md
+- **Problem:** Comparison records omit binary identities, host pressure and process-tree resource attribution. JSON timing has millisecond resolution, and fixed reference-first order can bias results.
+- **Recommendation:** Record artifact identity and host conditions, balance order, and document separate CPU sampling, memory and I/O diagnostics with their overhead.
+- **Fix with:** benchmark-checklist
+- **Effort:** M
+
+
+### DSLP-11 · P3 · Verify benchmark input freshness and run isolation
+
+- **Area:** deslop · bench
+- **Where:** buildsys/bench.py; buildsys/comparison.py
+- **Problem:** The driver warns but cannot establish archive and candidate freshness. The comparison harness reuses compare-work, and free space and leftover processes are not checked.
+- **Recommendation:** Use existing receipts to verify inputs and add bounded disk and process checks without changing the comparison contract.
+- **Fix with:** none
 - **Effort:** M
