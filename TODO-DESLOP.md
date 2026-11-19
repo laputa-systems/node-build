@@ -451,6 +451,21 @@ same final newline after a hexadecimal revision. Two variants add
 sentinel text to existing errors while preserving the error category
 and message content. These account for all nine macOS survivors.
 
+The full release module at `46c82f2658aa2fa5ed5cd6cc433108ae86a5bf96`
+accounted for all 390 identities on both native ARM64 hosts. Ubuntu
+caught 382 and macOS caught 373. The identity sets and generated spans
+matched exactly. Linux caught the nine case variants documented above.
+The eight shared survivors comprise five equivalent operations, two
+diagnostic-only changes and the omitted UTF-8 encoding caught in the
+C locale run. The release module's critical outcomes are dispositioned.
+
+Reproduce with the [exact hosted workflow](https://github.com/laputa-systems/node-build/blob/7f389ca/.github/workflows/release-mutation-trial.yml)
+at the recorded source. It uses Python 3.15.2, mutmut 3.8.1, pytest 9.2.0,
+`tests/test_release.py` and one mutation worker. The pinned Buildlib
+reader validates the full metadata and span sets. The job logs retain
+both compressed sidecars and the named survivors.
+[Native census](https://github.com/laputa-systems/node-build/actions/runs/44428020350)
+
 ## Tickets
 
 
@@ -459,7 +474,7 @@ and message content. These account for all nine macOS survivors.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and several boundary selections are measured. Survivor dispositions and the whole-change mutation gate remain open.
+- **Problem:** Coverage and several boundary selections are measured. The complete release scope is dispositioned on both hosts. Package, input and other controller scopes still need their critical dispositions and the retained whole-change lane.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
