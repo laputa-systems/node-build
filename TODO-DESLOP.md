@@ -507,8 +507,28 @@ on the supported hosts. The nested extraction case also catches
 all three changes that disable creation of destination parents.
 Run the two new `InputsTest` methods directly. For mutmut use the
 preceding archive recipe with `buildsys/inputs.py`, selecting the
-receipt-writing tests and the two new methods. DSLP-4 retains the
-other extraction dispositions and the whole-change lane.
+receipt-writing tests and the two new methods.
+
+The native ARM64 Linux and macOS input jobs used the same 49
+identities and both caught 41 with identical outcomes. The three
+`render_json` survivors (19, 21 and 23) select equivalent encodings
+for the ASCII output of the JSON writer. In `extract_tar`, mutant 11
+uses the default read mode, which follows the same compression
+autodetection path. Mutants 22 and 24 use the Python 3.15.2 default
+`data_filter`, verified by opening an empty archive under the
+locked interpreter. Mutants 18 and 20 change only the diagnostic
+text of the same rejection. The input scope is fully dispositioned.
+
+The paired package jobs exercised the same 309 identities. Linux
+caught 226 and macOS caught 217. The nine differences are changes
+in path casing caught on the case-sensitive Linux filesystem.
+These are `install_to_stage` 13 and 37 and `package` 10, 12, 53,
+55, 67, 148 and 150. The 83 shared survivors still need dispositions.
+The four jobs log the full result maps and source spans. Reproduce
+from the exact proof revision, which adds the trial workflow to
+the accepted source.
+[Proof revision](https://github.com/laputa-systems/node-build/commit/61dea39cd67a41cfc6552889f6706c4b99475526)
+· [Native input and package results](https://github.com/laputa-systems/node-build/actions/runs/44431737952)
 
 ## Tickets
 
@@ -518,7 +538,7 @@ other extraction dispositions and the whole-change lane.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and several boundary selections are measured. The complete release scope is dispositioned on both hosts. Package, input and other controller scopes still need their critical dispositions and the retained whole-change lane.
+- **Problem:** Coverage and several boundary selections are measured. The complete release and input scopes are dispositioned on both hosts. Package and other controller scopes still need their critical dispositions and the retained whole-change lane.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
