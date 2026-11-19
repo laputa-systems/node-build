@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import locks
+from buildlib import targets as host_targets
 
 import build
 import buildsys
@@ -35,12 +36,47 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(wanted.cpu_baseline_cflag, "-march=x86-64-v2")
 
     def test_linux_arm64_still_deferred(self):
-        with self.assertRaises(targets.UnsupportedTargetError):
+        with self.assertRaisesRegex(targets.UnsupportedTargetError, "target deferred"):
             targets.target_for_triple("aarch64-unknown-linux-musl")
 
     def test_unknown_triple_rejected(self):
-        with self.assertRaises(targets.UnsupportedTargetError):
+        with self.assertRaisesRegex(targets.UnsupportedTargetError, "target not implemented"):
             targets.target_for_triple("x86_64-apple-darwin")
+
+    def test_target_extension_preserves_buildlib_platform_fields(self):
+        triple = "x86_64-unknown-linux-musl"
+        target = targets._extend(triple, cpu_baseline_cflag="-march=x86-64-v2", deployment_target="1.2.6")
+        base = host_targets.target_for_triple(triple)
+        self.assertEqual(target.triple, base.triple)
+        self.assertEqual(target.executable_format, base.executable_format)
+        self.assertEqual(target.musl_loader, base.musl_loader)
+        self.assertEqual(target.cpu_baseline_cflag, "-march=x86-64-v2")
+        self.assertEqual(target.deployment_target, "1.2.6")
+
+    def test_native_target_uses_the_node_build_baseline(self):
+        for system, machine, triple, baseline in (
+            ("Darwin", "arm64", "aarch64-apple-darwin", "-mcpu=apple-m1"),
+            ("Linux", "x86_64", "x86_64-unknown-linux-musl", "-march=x86-64-v2"),
+        ):
+            with (
+                self.subTest(system=system, machine=machine),
+                patch.object(host_targets.platform, "system", return_value=system),
+                patch.object(host_targets.platform, "machine", return_value=machine),
+            ):
+                self.assertEqual(targets.native_target().cpu_baseline_cflag, baseline)
+                self.assertEqual(build.resolve_target(None), triple)
+
+    def test_omitted_target_rejects_parked_native_linux_arm64(self):
+        with (
+            patch.object(host_targets.platform, "system", return_value="Linux"),
+            patch.object(host_targets.platform, "machine", return_value="aarch64"),
+            redirect_stderr(io.StringIO()) as stderr,
+            self.assertRaises(SystemExit) as failure,
+        ):
+            build.main(["check-budgets"])
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("no --target given", stderr.getvalue())
+        self.assertIn("x86_64-unknown-linux-musl", stderr.getvalue())
 
 
 class ArchiveBudgetTest(unittest.TestCase):
