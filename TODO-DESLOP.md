@@ -417,6 +417,18 @@ and assets. A scratch annotation using `AssemblyResult` rejects
 under `ty check`. The existing assembly cases still check asset names,
 ordering and manifests. The 33 release cases and both linters passed.
 
+The receipt reader now has a subprocess test with a C locale and
+Python UTF-8 mode disabled. A UTF-8 receipt with a non-ASCII value
+still loads. In a disposable source copy, omitting the explicit
+encoding reproduces the ASCII decoding error. Python recognizes
+`UTF-8` as the same codec as `utf-8`, which accounts for the other
+record-loader survivor in the census above. A separate real Git
+fixture truncates only its own temporary index. The failed status
+query raises the assembly error and does not bind build provenance.
+Removing the status check made that test fail. Run the
+`ReleaseInputTest` cases to reproduce both controls. All 34 release
+cases and both linters passed.
+
 ## Tickets
 
 

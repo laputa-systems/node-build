@@ -54,6 +54,27 @@ class ReleaseInputTest(unittest.TestCase):
         path.write_text('{"name": "café", "nested": {"ok": true}}', encoding="utf-8")
         self.assertEqual(release_assembler.load_record(path, "record"), {"name": "café", "nested": {"ok": True}})
 
+    def test_record_uses_utf8_with_a_non_utf8_process_locale(self):
+        path = self.root / "record.json"
+        path.write_text('{"name": "café"}', encoding="utf-8")
+        check_record = (
+            "import locale\n"
+            "import sys\n"
+            "from pathlib import Path\n"
+            "from buildsys.release import load_record\n"
+            "assert locale.getencoding().lower() not in {'utf-8', 'utf8'}\n"
+            "assert load_record(Path(sys.argv[1]), 'record') == {'name': 'caf\\u00e9'}\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", check_record, str(path)],
+            cwd=REPO_ROOT,
+            env=dict(os.environ, LC_ALL="C", PYTHONCOERCECLOCALE="0", PYTHONUTF8="0"),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_checkout_revision_and_cleanliness_follow_real_git_state(self):
         with self.assertRaisesRegex(release_assembler.AssemblyError, "not a git checkout"):
             release_assembler.git_revision(self.root)
@@ -77,6 +98,10 @@ class ReleaseInputTest(unittest.TestCase):
         self.assertIsNone(release_assembler.clean_build_revision(self.root))
         with patch.dict(os.environ, {"PATH": str(self.root)}):
             self.assertIsNone(release_assembler.clean_build_revision(self.root))
+        (self.root / ".git" / "index").write_bytes(b"incomplete Git index")
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "git status failed"):
+            release_assembler.git_dirty(self.root)
+        self.assertIsNone(release_assembler.clean_build_revision(self.root))
 
 
 class PackageRecordTest(unittest.TestCase):
