@@ -80,6 +80,16 @@ Darwin = [
   "buildsys.package.x_package__mutmut_67=e00f0eef90cdcc41c512ea771f843b18d692a150f9a123459a2bf15e9bc0958f",
 ]
 
+[qualified.product]
+source_sha256 = "9fc0645f1ff6c7af9a0424015690bc22c6d9384702fe3f30badf65d86dd61720"
+Linux = []
+Darwin = []
+
+[qualified.recipes]
+source_sha256 = "3e9ef8c646bad9a89c62f7c9218ec1f62fe8c93b3fb32c4184ab09dca4a4b2c4"
+Linux = []
+Darwin = []
+
 [qualified.release]
 source_sha256 = "56693bcbab251eae95e2bc4713e142b55938ce5d9b56c68a6b292481408f4917"
 Linux = [
