@@ -85,6 +85,28 @@ source_sha256 = "9fc0645f1ff6c7af9a0424015690bc22c6d9384702fe3f30badf65d86dd6172
 Linux = []
 Darwin = []
 
+[qualified.qualify_runner]
+source_sha256 = "e4558008423f0ef010b7fbd612470597c327b8b39213d8462fe76d8da505c3bf"
+Linux = [
+  "buildsys.qualify_runner.x_qualify__mutmut_65=0315022f2716d8e69457a68d9c9a2c38a0f476ae970b27b2d2e2899d55cbd97c",
+  "buildsys.qualify_runner.x_qualify__mutmut_66=f2d9ea713aca18e21c54e9a561a0cf2127d1c61c7fe026ebba3206213bd05a85",
+  "buildsys.qualify_runner.x_qualify__mutmut_67=9e42c57813ab686969cf655d39bcf9386f2bd5ae94851e071591742ac0734f78",
+  "buildsys.qualify_runner.x_qualify__mutmut_68=5be996ce335170b314f5215fdb9c0aad2c962e8fd8c6238f6fc7b66cb83cd4e8",
+  "buildsys.qualify_runner.x_qualify__mutmut_69=54d12127e523f5198ca4cb384d60e1a5a848dad086f25606a0f7cec4a25f3b3d",
+  "buildsys.qualify_runner.x_qualify__mutmut_70=a95b1f0b152ed5f7cbe6c267fa9d6daefd5a4fbda3554b7cfe64560c569033d6",
+]
+Darwin = [
+  "buildsys.qualify_runner.x_qualify__mutmut_172=c0bebbac3df07963d6accd6f0408554da63fc95bab1b30d181fcb9718a7f9a9e",
+  "buildsys.qualify_runner.x_qualify__mutmut_36=8e85d5bfa986895392a81a5aafee0ccfe78d432bfbac48f9370c126643d2df88",
+  "buildsys.qualify_runner.x_qualify__mutmut_38=6b36809fd53d166982bd61cb4015997c30bb7de76235ca08b011401af5ee7135",
+  "buildsys.qualify_runner.x_qualify__mutmut_65=0315022f2716d8e69457a68d9c9a2c38a0f476ae970b27b2d2e2899d55cbd97c",
+  "buildsys.qualify_runner.x_qualify__mutmut_66=f2d9ea713aca18e21c54e9a561a0cf2127d1c61c7fe026ebba3206213bd05a85",
+  "buildsys.qualify_runner.x_qualify__mutmut_67=9e42c57813ab686969cf655d39bcf9386f2bd5ae94851e071591742ac0734f78",
+  "buildsys.qualify_runner.x_qualify__mutmut_68=5be996ce335170b314f5215fdb9c0aad2c962e8fd8c6238f6fc7b66cb83cd4e8",
+  "buildsys.qualify_runner.x_qualify__mutmut_69=54d12127e523f5198ca4cb384d60e1a5a848dad086f25606a0f7cec4a25f3b3d",
+  "buildsys.qualify_runner.x_qualify__mutmut_70=a95b1f0b152ed5f7cbe6c267fa9d6daefd5a4fbda3554b7cfe64560c569033d6",
+]
+
 [qualified.recipes]
 source_sha256 = "3e9ef8c646bad9a89c62f7c9218ec1f62fe8c93b3fb32c4184ab09dca4a4b2c4"
 Linux = []

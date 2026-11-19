@@ -15,6 +15,7 @@ CRITICAL = frozenset({
     "buildsys/inputs.py",
     "buildsys/package.py",
     "buildsys/product.py",
+    "buildsys/qualify_runner.py",
     "buildsys/recipes.py",
     "buildsys/release.py",
     "buildsys/targets.py",

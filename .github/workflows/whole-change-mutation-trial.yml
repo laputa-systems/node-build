@@ -77,6 +77,7 @@ jobs:
             inputs) tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest", "tests/test_controller.py::BuildReceiptTest", "tests/test_release.py::PackageRecordTest"]' ;;
             package) tests='["tests/test_release.py", "tests/test_product.py"]' ;;
             product) tests='["tests/test_controller.py::ProductTest", "tests/test_release.py", "tests/test_product.py"]' ;;
+            qualify_runner) tests='["tests/test_product.py::QualificationReceiptTest"]' ;;
             recipes) tests='["tests/test_controller.py::RecipesTest"]' ;;
             release) tests='["tests/test_release.py"]' ;;
             targets) tests='["tests/test_controller.py::TargetTest", "tests/test_controller.py::RecipesTest", "tests/test_release.py"]' ;;
