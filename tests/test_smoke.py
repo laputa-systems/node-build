@@ -89,6 +89,27 @@ class FileSystemSmokeTest(unittest.TestCase):
                 smoke.check_fs_async(program, work, work)
 
 
+class HttpsSmokeTest(unittest.TestCase):
+    def test_passes_fixture_paths_as_separate_node_arguments(self):
+        work = Path("/probe/work")
+        fixtures = Path("/probe/owner's fixtures")
+        node = work / "installed node"
+        with patch.object(smoke, "run_node", return_value=subprocess.CompletedProcess([], 0, "https ok\n", "")) as invoke:
+            self.assertEqual(smoke.check_https(node, work, fixtures), "trusted accepted, untrusted rejected")
+        program, args, directory = invoke.call_args.args
+        self.assertEqual((program, directory), (node, work))
+        self.assertEqual(args[0], "-e")
+        self.assertEqual(args[2:], ["--", str(fixtures / "test-key.pem"), str(fixtures / "test-cert.pem")])
+        self.assertNotIn(str(fixtures), args[1])
+
+    def test_rejects_failed_probe_even_with_success_output(self):
+        with (
+            patch.object(smoke, "run_node", return_value=subprocess.CompletedProcess([], 3, "https ok\n", "fixture error")),
+            self.assertRaisesRegex(smoke.SmokeError, r"^https check failed \(3\): fixture error$"),
+        ):
+            smoke.check_https(Path("/probe/node"), Path("/probe/work"), Path("/probe/fixtures"))
+
+
 class TestRunnerSmokeTest(unittest.TestCase):
     def setUp(self):
         scratch = ROOT / ".work/tmp"

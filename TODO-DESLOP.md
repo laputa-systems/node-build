@@ -973,6 +973,17 @@ verify the written file contains 1,000 `x` bytes. The portable case and
 native control together caught all 35 `check_fs_async` identities with
 mutmut 3.8.1 and pytest 9.2.0. All 13 smoke cases and both linters passed.
 
+#### HTTPS fixture path handling
+
+The locked macOS ARM64 Node 26.12.1 reproduced a syntax error when the
+HTTPS probe's fixture directory contained an apostrophe. The controller
+now passes the key and certificate as separate Node arguments. A real
+loopback probe passed with the original fixtures and with their symlinks
+under an apostrophe-and-space directory. It still accepts the trusted
+certificate and rejects the untrusted one. The portable cases check the
+argument boundaries and refusal after a nonzero exit. All 20 smoke
+cases and both linters passed.
+
 ## Tickets
 
 

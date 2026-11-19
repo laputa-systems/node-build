@@ -186,10 +186,11 @@ def check_http(node: Path, work: Path, fixtures: Path) -> str:
 
 
 def check_https(node: Path, work: Path, fixtures: Path) -> str:
-    script_template = (
+    script = (
         "const https = require('node:https');"
         "const fs = require('node:fs');"
-        "const options = { key: fs.readFileSync('%s'), cert: fs.readFileSync('%s') };"
+        "const [keyPath, certPath] = process.argv.slice(1);"
+        "const options = { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };"
         "(async () => {"
         "  const server = https.createServer(options, (req, res) => { res.end('secure'); });"
         "  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));"
@@ -215,10 +216,7 @@ def check_https(node: Path, work: Path, fixtures: Path) -> str:
         "  console.log('https ok');"
         "})();"
     )
-    script = script_template % (
-        fixtures / "test-key.pem", fixtures / "test-cert.pem",
-    )
-    completed = run_node(node, ["-e", script], work)
+    completed = run_node(node, ["-e", script, "--", str(fixtures / "test-key.pem"), str(fixtures / "test-cert.pem")], work)
     if completed.returncode != 0 or "https ok" not in completed.stdout:
         raise SmokeError(f"https check failed ({completed.returncode}): {completed.stderr}")
     return "trusted accepted, untrusted rejected"
