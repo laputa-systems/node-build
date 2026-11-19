@@ -735,6 +735,23 @@ with the release archive recipe and `tests/test_product.py`,
 `tests/test_elf.py` and `tests/test_release.py`. The 176 survivors
 remain in DSLP-4. The new checks and both linters passed.
 
+### Relocation receipts
+
+The relocation tests execute the copied program from ordinary paths
+and paths with spaces. They verify materialization of a relative
+settings link, preservation of an existing destination, embedded path
+diagnostics, failed process output and both timeouts.
+
+The matched current selection catches 104 of 111 identities. The
+earlier selection caught two and marked 101 unexercised. Variants 4
+and 7 of `copy_tree` preserve the symlink copy default. Variants 7
+and 12 of `run_version` preserve subprocess error-checking behavior.
+Variants 6 and 8 of `verify_relocation` uppercase an installed path
+and need the case-sensitive Linux check. Variant 80 changes only the
+diagnostic length. Run `buildsys.relocate.*` with
+`tests/test_product.py::RelocateTest` and the release archive recipe.
+All five focused tests and both linters passed.
+
 ## Tickets
 
 
