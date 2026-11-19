@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [targets]
+        module: [package]
         runner: [ubuntu-26.04-arm, xcode-27]
     env:
       PROOF_MODULE: ${{ matrix.module }}
@@ -38,7 +38,7 @@ jobs:
       - name: Run and account for controller mutations
         run: |
           case "$PROOF_MODULE" in
-            targets) proof_tests='["tests/test_controller.py::TargetTest", "tests/test_controller.py::RecipesTest", "tests/test_release.py"]' ;;
+            package) proof_tests='["tests/test_release.py", "tests/test_product.py"]' ;;
             *) exit 2 ;;
           esac
           proof="$PWD/.work/tmp/controller-proof"
