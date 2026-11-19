@@ -406,7 +406,7 @@ def check_napi_addon(
 
 def check_exclusions(node: Path, work: Path, fixtures: Path, install_root: Path) -> str:
     for name in ("npm", "npx"):
-        if (install_root / "bin" / name).exists():
+        if (install_root / "bin" / name).exists(follow_symlinks=False):
             raise SmokeError(f"excluded payload present: bin/{name}")
     completed = run_node(node, ["--help"], work)
     if completed.returncode != 0 or "Usage: node" not in completed.stdout:
