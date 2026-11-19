@@ -491,6 +491,25 @@ recipe, changing the source to `buildsys/package.py`, selecting
 `tests/test_release.py` and `tests/test_product.py`, and running
 `buildsys.package.*`. DSLP-4 retains the 92 package survivors.
 
+The native Linux input census selected `InputsTest`,
+`ExtractedSourceTest`, `BuildReceiptTest`, and `PackageRecordTest`.
+It accounted for all 49 identities with 29 catches. The runner
+copies the scratch path and locked fixture files into each audit
+workspace. Buildlib's reader rejected the earlier run's 23 no-test
+results before the receipt-writing tests were included.
+[Native input census](https://github.com/laputa-systems/node-build/actions/runs/44429877423)
+
+The new output cases check a complete JSON receipt, a shorter rewrite
+and extraction of an ordinary compressed directory into a missing
+directory chain. The matched JSON selection moved from 11 to 20
+catches of 23. The remaining encodings write the same ASCII JSON bytes
+on the supported hosts. The nested extraction case also catches
+all three changes that disable creation of destination parents.
+Run the two new `InputsTest` methods directly. For mutmut use the
+preceding archive recipe with `buildsys/inputs.py`, selecting the
+receipt-writing tests and the two new methods. DSLP-4 retains the
+other extraction dispositions and the whole-change lane.
+
 ## Tickets
 
 
