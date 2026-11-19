@@ -81,27 +81,33 @@ class ReleaseInputTest(unittest.TestCase):
         self.assertIsNone(release_assembler.clean_build_revision(self.root))
         env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
-        (self.root / ".gitignore").write_text("ignored\n", encoding="utf-8")
-        for command in (["init", "-q"], ["add", "."], ["commit", "-qm", "initial"]):
-            subprocess.run(["git", *command], cwd=self.root, env=env, check=True)
-        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, env=env,
+        checkout = self.root / "checkout\nwith trailing space "
+        checkout.mkdir()
+        (checkout / ".gitignore").write_text("ignored\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=checkout, env=env, check=True)
+        with self.assertRaisesRegex(release_assembler.AssemblyError, "^not a git checkout$"):
+            release_assembler.git_revision(checkout)
+        for command in (["add", "."], ["commit", "-qm", "initial"]):
+            subprocess.run(["git", *command], cwd=checkout, env=env, check=True)
+        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=checkout, env=env,
                                   capture_output=True, text=True, check=True).stdout.strip()
-        self.assertEqual(release_assembler.git_revision(self.root), revision)
-        self.assertEqual(release_assembler.clean_build_revision(self.root), revision)
-        (self.root / "ignored").write_text("ignored")
-        self.assertEqual(release_assembler.clean_build_revision(self.root), revision)
-        child = self.root / "child"
+        self.assertEqual(release_assembler.git_revision(checkout), revision)
+        self.assertEqual(release_assembler.clean_build_revision(checkout), revision)
+        (checkout / "ignored").write_text("ignored")
+        self.assertEqual(release_assembler.clean_build_revision(checkout), revision)
+        child = checkout / "child"
         child.mkdir()
         with self.assertRaisesRegex(release_assembler.AssemblyError, "not a git checkout root"):
             release_assembler.git_revision(child)
+        subprocess.run(["git", "config", "status.showUntrackedFiles", "no"], cwd=checkout, env=env, check=True)
         (child / "untracked").write_text("dirty")
-        self.assertIsNone(release_assembler.clean_build_revision(self.root))
+        self.assertIsNone(release_assembler.clean_build_revision(checkout))
         with patch.dict(os.environ, {"PATH": str(self.root)}):
-            self.assertIsNone(release_assembler.clean_build_revision(self.root))
-        (self.root / ".git" / "index").write_bytes(b"incomplete Git index")
+            self.assertIsNone(release_assembler.clean_build_revision(checkout))
+        (checkout / ".git" / "index").write_bytes(b"incomplete Git index")
         with self.assertRaisesRegex(release_assembler.AssemblyError, "git status failed"):
-            release_assembler.git_dirty(self.root)
-        self.assertIsNone(release_assembler.clean_build_revision(self.root))
+            release_assembler.git_dirty(checkout)
+        self.assertIsNone(release_assembler.clean_build_revision(checkout))
 
 
 class PackageRecordTest(unittest.TestCase):
@@ -300,6 +306,7 @@ class AssembleTest(unittest.TestCase):
             with self.subTest(command=command):
                 def run_with_timeout(args, *, timed_out_command=command, **kwargs):
                     if args[:2] == ["git", timed_out_command]:
+                        self.assertEqual(kwargs["timeout"], 60)
                         raise subprocess.TimeoutExpired(args, kwargs["timeout"])
                     return run(args, **kwargs)
 
