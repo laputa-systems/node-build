@@ -1,6 +1,7 @@
 import hashlib
 import json
 import struct
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -295,6 +296,75 @@ class ReproduceReceiptTest(unittest.TestCase):
 
 
 class RelocateTest(unittest.TestCase):
+    def test_relocation_runs_the_installed_node_under_both_paths(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as temp:
+            work = Path(temp)
+            stage = work / "original"
+            binary = stage / "bin" / "node"
+            binary.parent.mkdir(parents=True)
+            binary.write_text(
+                "#!/bin/sh\n"
+                '[ "$1" = "--version" ] || exit 8\n'
+                '# /fixture/source/checkout\n'
+                'printf "v26.12.1\\n"\n',
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            (stage / "default.conf").write_bytes(b"fixture settings")
+            (stage / "settings.conf").symlink_to("default.conf")
+            first = work / "relocated"
+            second = work / "relocated with spaces"
+            findings = relocate.verify_relocation(
+                stage, first, second, [b"/fixture/stage"], [b"/fixture/source/checkout"],
+            )
+            self.assertEqual(findings, [
+                relocate.RelocationFinding("no-stage-refs", True, "no stage path leaks"),
+                relocate.RelocationFinding("info-source-refs", True, "1 upstream-inert config strings"),
+                relocate.RelocationFinding("relocate-plain", True, "v26.12.1"),
+                relocate.RelocationFinding("relocate-with spaces", True, "v26.12.1"),
+            ])
+            self.assertEqual((first / "bin" / "node").read_bytes(), binary.read_bytes())
+            self.assertEqual((second / "bin" / "node").read_bytes(), binary.read_bytes())
+            self.assertFalse((second / "settings.conf").is_symlink())
+            self.assertEqual((second / "settings.conf").read_bytes(), b"fixture settings")
+
+    def test_relocation_reports_existing_paths_and_failed_programs(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as temp:
+            work = Path(temp)
+            stage = work / "original"
+            binary = stage / "bin" / "node"
+            binary.parent.mkdir(parents=True)
+            binary.write_text(
+                "#!/bin/sh\n# /fixture/stage\n"
+                'printf "fixture failure\\n" >&2\nexit 7\n',
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            first = work / "existing"
+            first.mkdir()
+            old = first / "keep"
+            old.write_bytes(b"previous run")
+            second = work / "fresh with spaces"
+            findings = relocate.verify_relocation(stage, first, second, [b"/fixture/stage"], [])
+            self.assertEqual(findings, [
+                relocate.RelocationFinding("no-stage-refs", False, "stage prefixes: [b'/fixture/stage']"),
+                relocate.RelocationFinding("info-source-refs", True, "none"),
+                relocate.RelocationFinding("relocate-plain", False, f"refusing to overwrite existing directory: {first}"),
+                relocate.RelocationFinding("relocate-with spaces", False, f"{second / 'bin' / 'node'} --version failed: fixture failure\n"),
+            ])
+            self.assertEqual(old.read_bytes(), b"previous run")
+            self.assertEqual((second / "bin" / "node").read_bytes(), binary.read_bytes())
+
+    def test_version_probe_uses_the_default_and_requested_deadlines(self):
+        binary = Path("/fixture/path with spaces/node")
+        command = [str(binary), "--version"]
+        result = subprocess.CompletedProcess(command, 0, stdout="v26.12.1\n", stderr="")
+        with patch.object(relocate.subprocess, "run", return_value=result) as run:
+            self.assertEqual(relocate.run_version(binary), "v26.12.1")
+            self.assertEqual(run.call_args.kwargs.get("timeout"), 60)
+            self.assertEqual(relocate.run_version(binary, timeout=3), "v26.12.1")
+            self.assertEqual(run.call_args.kwargs.get("timeout"), 3)
+
     def test_forbidden_ref_detected(self):
         binary = REPO_ROOT / ".work" / "tmp" / "blob.bin"
         binary.write_bytes(b"\x00built in /some/build/dir\x00")
