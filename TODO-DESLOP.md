@@ -846,6 +846,36 @@ a mixed assembly list, with valid build and reproduction controls
 for stdout and argument forwarding. All 51 focused tests and lint
 passed.
 
+
+The expanded CLI cases verify success and error streams for fetch,
+package, qualification, assembly, published smoke, comparison and
+budget checks. They also verify the default assembly set and the
+controller test command's discovery and result status.
+
+Across the same 381 identities at `44558734`, the matched controller
+scope moves from 164 to 285 caught. The broader run retains 95
+survivors and one timeout. The timed-out `main` variant 20
+routes ordinary commands into controller discovery. Selecting
+`tests/test_cli.py::ControllerTestCommandContract` alone caught
+the same variant. The broader timeout remains distinct from
+the test catches. All six CLI tests and lint passed.
+
+
+### Version, help, addon and excluded payload probes
+
+The staged executable fixture exercises version and help content,
+exit status, stderr, footer uniqueness, and completion output.
+Native-addon fixtures verify both compiler argument sets, the
+deadline, the generated load command and the compiler and load
+failure paths. Either excluded executable fails admission.
+
+The four selected functions caught 210 of 217 identities on
+macOS ARM64 using `tests/test_smoke.py`. Seven variants change
+path case, default Darwin spellings that take the same branch,
+or the falsey default subprocess check. The native repeat
+and wider smoke inventory stay under DSLP-4. All nine smoke
+tests and lint passed.
+
 ## Tickets
 
 
