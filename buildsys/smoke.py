@@ -100,7 +100,7 @@ def check_modules(node: Path, work: Path, fixtures: Path) -> str:
         "});"
     )
     completed = run_node(node, ["-e", script], fixtures / "smoke")
-    if completed.returncode != 0 or "cjs+esm ok" not in completed.stdout:
+    if completed.returncode != 0 or "cjs+esm ok" not in completed.stdout.splitlines():
         raise SmokeError(f"module check failed: {completed.stderr}")
     return "cjs+esm ok"
 
@@ -155,7 +155,7 @@ def check_dns_tcp(node: Path, work: Path, fixtures: Path) -> str:
         "})();"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "dns+tcp ok" not in completed.stdout:
+    if completed.returncode != 0 or "dns+tcp ok" not in completed.stdout.splitlines():
         raise SmokeError(f"dns+tcp check failed: {completed.stderr}")
     return "dns+tcp ok"
 
@@ -180,7 +180,7 @@ def check_http(node: Path, work: Path, fixtures: Path) -> str:
         "})();"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "http ok" not in completed.stdout:
+    if completed.returncode != 0 or "http ok" not in completed.stdout.splitlines():
         raise SmokeError(f"http check failed: {completed.stderr}")
     return "http ok"
 
@@ -217,7 +217,7 @@ def check_https(node: Path, work: Path, fixtures: Path) -> str:
         "})();"
     )
     completed = run_node(node, ["-e", script, "--", str(fixtures / "test-key.pem"), str(fixtures / "test-cert.pem")], work)
-    if completed.returncode != 0 or "https ok" not in completed.stdout:
+    if completed.returncode != 0 or "https ok" not in completed.stdout.splitlines():
         raise SmokeError(f"https check failed ({completed.returncode}): {completed.stderr}")
     return "trusted accepted, untrusted rejected"
 
@@ -241,7 +241,7 @@ def check_crypto(node: Path, work: Path, fixtures: Path) -> str:
         "})();"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "crypto ok" not in completed.stdout:
+    if completed.returncode != 0 or "crypto ok" not in completed.stdout.splitlines():
         raise SmokeError(f"crypto check failed: {completed.stderr}")
     return "webcrypto vector + aes-gcm roundtrip"
 
@@ -257,7 +257,7 @@ def check_compression(node: Path, work: Path, fixtures: Path) -> str:
         "console.log('compression ok');"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "compression ok" not in completed.stdout:
+    if completed.returncode != 0 or "compression ok" not in completed.stdout.splitlines():
         raise SmokeError(f"compression check failed: {completed.stderr}")
     return "zlib + brotli roundtrips"
 
@@ -278,7 +278,7 @@ def check_fetch_streams(node: Path, work: Path, fixtures: Path) -> str:
         "})();"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "fetch ok" not in completed.stdout:
+    if completed.returncode != 0 or "fetch ok" not in completed.stdout.splitlines():
         raise SmokeError(f"fetch check failed: {completed.stderr}")
     return "fetch ok"
 
@@ -306,7 +306,7 @@ def check_workers_child(node: Path, work: Path, fixtures: Path) -> str:
     probe = work / "worker-probe.cjs"
     probe.write_text(script, encoding="utf-8")
     completed = run_node(node, [str(probe)], work)
-    if completed.returncode != 0 or "workers ok" not in completed.stdout:
+    if completed.returncode != 0 or "workers ok" not in completed.stdout.splitlines():
         raise SmokeError(f"workers check failed: {completed.stderr}")
     return "worker + child ok"
 
@@ -320,7 +320,7 @@ def check_intl(node: Path, work: Path, fixtures: Path) -> str:
         "console.log('intl ok');"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "intl ok" not in completed.stdout:
+    if completed.returncode != 0 or "intl ok" not in completed.stdout.splitlines():
         raise SmokeError(f"intl check failed: {completed.stderr}")
     return "en-US currency + weekday"
 
@@ -399,7 +399,7 @@ def check_napi_addon(
         raise SmokeError(f"addon compile failed: {compile_result.stderr}")
     script = "const addon = require('./addon.node'); if (addon.answer() !== 42) { process.exit(1); } console.log('addon ok');"
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "addon ok" not in completed.stdout:
+    if completed.returncode != 0 or "addon ok" not in completed.stdout.splitlines():
         raise SmokeError(f"addon load failed: {completed.stderr}")
     return "compiled against shipped headers and loaded"
 
