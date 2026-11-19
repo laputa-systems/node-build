@@ -1,5 +1,7 @@
+import io
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -60,3 +62,80 @@ class SmokeSuiteTest(unittest.TestCase):
         architecture.assert_called_once_with(node, work, fixtures, triple)
         addon.assert_called_once_with(node, work, fixtures, headers, triple)
         exclusions.assert_called_once_with(node, work, fixtures, install)
+
+
+class InspectorSmokeTest(unittest.TestCase):
+    def run_probe(self, body, *, expected=None, error=None, response_body=None, deadline=2):
+        with tempfile.TemporaryDirectory(dir=ROOT / ".work" / "tmp") as temporary:
+            work = Path(temporary)
+            program = work / "node"
+            program.write_text(
+                "#!/bin/sh -e\n"
+                'test "$1" = --inspect=127.0.0.1:0\n'
+                'test "$(cat "$2")" = "setInterval(() => {}, 1000);"\n'
+                f"{body}\n",
+                encoding="utf-8",
+            )
+            program.chmod(0o755)
+            spawned = []
+            popen = subprocess.Popen
+
+            def capture(*args, **kwargs):
+                process = popen(*args, **kwargs)
+                spawned.append(process)
+                return process
+
+            with (
+                patch.object(smoke, "INSPECTOR_ANNOUNCE_TIMEOUT", deadline),
+                patch.object(smoke.subprocess, "Popen", side_effect=capture),
+                patch.object(smoke.urllib.request, "urlopen", return_value=io.BytesIO(response_body or b"")) as response,
+            ):
+                try:
+                    started = time.monotonic()
+                    if error is not None:
+                        with self.assertRaisesRegex(smoke.SmokeError, error):
+                            smoke.check_inspector(program, work, work)
+                    else:
+                        self.assertEqual(smoke.check_inspector(program, work, work), expected)
+                    if response_body is None:
+                        self.assertLess(time.monotonic() - started, 2)
+                        response.assert_not_called()
+                    else:
+                        response.assert_called_once_with("http://127.0.0.1:43210/json/list", timeout=30)
+                    self.assertEqual(len(spawned), 1)
+                    self.assertIsNotNone(spawned[0].returncode)
+                finally:
+                    for child in spawned:
+                        child.kill()
+                        child.wait()
+                        if child.stdout is not None:
+                            child.stdout.close()
+                        if child.stderr is not None:
+                            child.stderr.close()
+
+    def test_times_out_and_reaps_child_with_partial_stderr(self):
+        self.run_probe(
+            "printf starting >&2; exec sleep 4",
+            error="inspector endpoint not announced: starting",
+            deadline=0.15,
+        )
+
+    def test_preserves_diagnostic_at_eof_with_non_utf8_stderr(self):
+        self.run_probe(
+            "printf 'starting\\377' >&2",
+            error="inspector endpoint not announced: starting�",
+        )
+
+    def test_reads_endpoint_and_reaps_child(self):
+        self.run_probe(
+            "printf 'Debugger listening on ws://127.0.0.1:43210/id\\n' >&2; exec sleep 4",
+            expected="inspector target 12345678",
+            response_body=b'[{"id":"123456789"}]',
+        )
+
+    def test_rejects_empty_target_list_and_reaps_child(self):
+        self.run_probe(
+            "printf 'Debugger listening on ws://127.0.0.1:43210/id' >&2; exec sleep 4",
+            error=r"inspector list unexpected: \[\]",
+            response_body=b"[]",
+        )

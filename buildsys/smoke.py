@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import selectors
 import subprocess
 import time
 import urllib.request
@@ -20,6 +23,7 @@ class SmokeFinding:
 
 
 CHECK_TIMEOUT = 60
+INSPECTOR_ANNOUNCE_TIMEOUT = 30
 
 EXPECTED_IDENTITY = {
     "aarch64-apple-darwin": "arm64/darwin",
@@ -30,8 +34,6 @@ EXPECTED_IDENTITY = {
 def run_node(
     node: Path, args: list[str], cwd: Path, extra_env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    import os
-
     env = dict(os.environ)
     if extra_env:
         env.update(extra_env)
@@ -337,34 +339,40 @@ def check_startup(node: Path, work: Path, fixtures: Path) -> str:
 
 
 def check_inspector(node: Path, work: Path, fixtures: Path) -> str:
-    import re
-
     probe = work / "inspector-probe.js"
     probe.write_text("setInterval(() => {}, 1000);", encoding="utf-8")
-    process = subprocess.Popen(
+    with subprocess.Popen(
         [str(node), "--inspect=127.0.0.1:0", str(probe)],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-    )
-    try:
-        assert process.stderr is not None
-        match = None
-        deadline = time.monotonic() + 30
-        buffered = ""
-        while time.monotonic() < deadline and match is None:
-            chunk = process.stderr.readline()
-            if not chunk:
-                break
-            buffered += chunk
-            match = re.search(r"ws://127\.0\.0\.1:(\d+)/", buffered)
-        if match is None:
-            raise SmokeError(f"inspector endpoint not announced: {buffered}")
-        with urllib.request.urlopen(f"http://127.0.0.1:{match.group(1)}/json/list", timeout=30) as response:
-            targets = json.loads(response.read().decode("utf-8"))
-        if not targets or "id" not in targets[0]:
-            raise SmokeError(f"inspector list unexpected: {targets}")
-        return f"inspector target {targets[0]['id'][:8]}"
-    finally:
-        process.kill()
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    ) as process:
+        try:
+            assert process.stderr is not None
+            match = None
+            deadline = time.monotonic() + INSPECTOR_ANNOUNCE_TIMEOUT
+            buffered = bytearray()
+            with selectors.DefaultSelector() as receiver:
+                receiver.register(process.stderr, selectors.EVENT_READ)
+                remaining = deadline - time.monotonic()
+                while remaining > 0 and receiver.select(remaining):
+                    chunk = os.read(process.stderr.fileno(), 4096)
+                    if not chunk:
+                        break
+                    buffered.extend(chunk)
+                    match = re.search(rb"ws://127\.0\.0\.1:(\d+)/", buffered)
+                    if match is not None:
+                        break
+                    del buffered[:-4096]
+                    remaining = deadline - time.monotonic()
+            if match is None:
+                raise SmokeError(f"inspector endpoint not announced: {buffered.decode(errors='replace')}")
+            port = int(match.group(1))
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=30) as response:
+                targets = json.loads(response.read().decode("utf-8"))
+            if not targets or "id" not in targets[0]:
+                raise SmokeError(f"inspector list unexpected: {targets}")
+            return f"inspector target {targets[0]['id'][:8]}"
+        finally:
+            process.kill()
 
 
 def check_napi_addon(
