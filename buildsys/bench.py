@@ -13,6 +13,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from buildsys.node import source_dir
+from buildsys.product import NODE_VERSION, archive_name
+
 ROOT = Path(__file__).resolve().parents[1]
 TIERS = ("edit", "change", "scenario", "full")
 
@@ -79,13 +82,13 @@ def preflight(workloads: list[Workload]) -> list[str]:
             if not gate or subprocess.run([gate], cwd=ROOT, check=False).returncode:
                 failures.append(f"{w.name}: perf gate deferred: host busy or perf-gate-ready unavailable; establish host readiness")
         if w.requirement == "archive":
-            path = ROOT / "dist" / w.target / f"node-26.12.1-{w.target}.tar.xz"
+            path = ROOT / "dist" / w.target / archive_name(NODE_VERSION, w.target)
             if not path.is_file():
                 failures.append(f"{w.name}: missing {path}; build and package the target")
             else:
                 print(f"warning: {w.name}: archive freshness is not established; verify its provenance")
         elif w.requirement == "nodes":
-            candidate = ROOT / "build/src/node-v26.12.1/out/Release/node"
+            candidate = source_dir(ROOT) / "out" / "Release" / "node"
             reference = shutil.which("node")
             for label, path in (("candidate", str(candidate)), ("reference", reference)):
                 if not path or not os.access(path, os.X_OK):
@@ -93,8 +96,8 @@ def preflight(workloads: list[Workload]) -> list[str]:
                 else:
                     try:
                         version = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=10, check=False)
-                        if version.returncode or version.stdout.strip() != "v26.12.1":
-                            failures.append(f"{w.name}: {label} must be Node v26.12.1; install the locked version")
+                        if version.returncode or version.stdout.strip() != f"v{NODE_VERSION}":
+                            failures.append(f"{w.name}: {label} must be Node v{NODE_VERSION}; install the locked version")
                     except (OSError, subprocess.TimeoutExpired) as error:
                         failures.append(f"{w.name}: cannot run {label}: {error}; repair the executable")
             print(f"warning: {w.name}: candidate freshness is not established; verify its provenance")
