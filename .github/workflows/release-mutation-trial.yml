@@ -1,4 +1,4 @@
-name: package and input mutation trial
+name: controller mutation trial
 
 on: pull_request
 
@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [package, inputs]
+        module: [package, budgets, targets, comparison]
         runner: [ubuntu-26.04-arm, xcode-27]
     env:
       PROOF_MODULE: ${{ matrix.module }}
@@ -39,7 +39,9 @@ jobs:
         run: |
           case "$PROOF_MODULE" in
             package) proof_tests='["tests/test_release.py", "tests/test_product.py"]' ;;
-            inputs) proof_tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest", "tests/test_controller.py::BuildReceiptTest", "tests/test_release.py::PackageRecordTest"]' ;;
+            budgets) proof_tests='["tests/test_controller.py::ArchiveBudgetTest"]' ;;
+            targets) proof_tests='["tests/test_controller.py::TargetTest", "tests/test_controller.py::RecipesTest", "tests/test_release.py"]' ;;
+            comparison) proof_tests='["tests/test_compare.py"]' ;;
             *) exit 2 ;;
           esac
           proof="$PWD/.work/tmp/controller-proof"
