@@ -788,7 +788,7 @@ tests and both linters passed.
 ### Inspector announcement deadline
 
 A subprocess that wrote partial stderr and stayed alive held
-\`check_inspector\` in a blocking read. A separate successful fixture showed
+`check_inspector` in a blocking read. A separate successful fixture showed
 its child remained unreaped on return. Read only when the pipe is ready,
 bound the announcement buffer and wait for the killed child on exit.
 
@@ -798,7 +798,7 @@ list, and invalid UTF-8 before EOF. All six smoke tests and lint
 passed. A focused macOS ARM64 run using mutmut 3.8.1 and pytest 9.2.0
 caught 72 of 90 inspector identities. The remaining 18 stay in
 DSLP-4. Reuse the smoke recipe above with
-\`buildsys.smoke.x_check_inspector__mutmut_*\`.
+`buildsys.smoke.x_check_inspector__mutmut_*`.
 
 
 ## Tickets
