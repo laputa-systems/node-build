@@ -769,6 +769,21 @@ image argument. Use the release archive recipe with
 Mach-O, installed-product and ELF fixtures. All 19 focused checks
 and both linters passed.
 
+### Architecture smoke probe
+
+The architecture check now requires a successful subprocess exit
+before accepting the reported identity. A real shell fixture prints
+the expected Linux identity and exits 7. The previous check accepted
+that output. The fixed check reports the exit and stderr, and the
+matching successful probe still passes. A separate suite fixture
+checks continuation after subprocess timeout, probe failure and an
+unavailable addon compiler.
+
+The focused `run_node`, `check_arch` and `run_suite` selection caught
+103 of 143 identities with `tests/test_smoke.py`. The rest of the
+smoke controller and focused survivors remain in DSLP-4. Both new
+tests and both linters passed.
+
 ## Tickets
 
 
