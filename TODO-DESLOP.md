@@ -572,6 +572,45 @@ surviving (5, 11, 14, 17 and 19), and the other outcomes held.
 This exercises the release arm of the selection. DSLP-4 retains
 the full changed-production policy and hosted verification.
 
+The archive layout and epoch tests caught 294 of the same 309
+package identities on Linux and 285 on macOS, with 45 additional
+catches on each host. The installer encoding fix then changed
+the production source. The new matching census has 315 identities.
+Linux caught 305 and macOS caught 296. The same nine path-case
+outcomes explain the platform difference.
+[Archive layout results](https://github.com/laputa-systems/node-build/actions/runs/44435038022)
+· [Installer fix](https://github.com/laputa-systems/node-build/pull/56)
+· [Post-fix census](https://github.com/laputa-systems/node-build/actions/runs/44436014451)
+
+All ten shared survivors in the post-fix run are in
+`install_to_stage`. The ordinary nested-stage and C-locale test
+passed in a fresh archive. Replacing the function body with each
+rendered mutmut variant independently produced these results:
+
+| Suffixes | Outcome |
+| --- | --- |
+| 4, 6, 8 | The controller cannot create the nested staging path. |
+| 16, 19 | The log writer falls back to ASCII and raises `UnicodeEncodeError`. |
+| 49, 50 | The installer inherits ASCII and the controller reports an installer failure. |
+| 23, 52, 54 | Uppercase UTF-8 names resolve to the same codec. The fixture passes. |
+
+Use the package archive recipe at `f04ca441590ef9b5ed6d7d92b2f066fc8911763d`.
+Run `buildsys.package.x_install_to_stage__mutmut_*` and take each body
+from `mutants/buildsys/package.py`. In a fresh archive for each body,
+run `uv run --frozen python -B -m unittest tests.test_release.PackageStageTest.test_installer_creates_nested_stage_and_captures_utf8_under_c_locale -q`.
+Run the unchanged body as the positive control. Isolate bytecode
+caches between controls because the separate process imports the
+edited file. The package scope is fully dispositioned.
+
+The native target trial ran the constructor after initialization
+and exercised omitted-target resolution with both released
+baselines and the parked Linux ARM64 target. Both native jobs
+accounted for 18 identities and caught 15. `target_for_triple`
+3, 4 and 5 change only the wording of the same parked-target
+diagnostic. The target scope is fully dispositioned.
+[Target admission cases](https://github.com/laputa-systems/node-build/pull/53)
+· [Native target results](https://github.com/laputa-systems/node-build/actions/runs/44434306494)
+
 ## Tickets
 
 
@@ -580,7 +619,7 @@ the full changed-production policy and hosted verification.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and several boundary selections are measured. The complete release and input scopes are dispositioned on both hosts. Package and other controller scopes still need their critical dispositions and the retained whole-change lane.
+- **Problem:** Coverage and several boundary selections are measured. Release, inputs, budgets, targets and package are dispositioned. Comparison and other controller scopes still need their critical dispositions and the retained whole-change lane.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
