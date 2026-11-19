@@ -893,6 +893,27 @@ Select `tests/test_smoke.py::TestRunnerSmokeTest` with
 mutmut 3.8.1 and pytest 9.2.0 in the controller archive.
 All 11 focused smoke tests and both linters passed.
 
+### Worker and child smoke path
+
+At `8cd5550f`, the pinned Darwin ARM64 Node 26.12.1 failed
+the worker-and-child smoke probe with a JavaScript syntax error
+when its staged path contained an apostrophe. A temporary
+directory named with the prefix `owner's build ` and a symlink
+to the installed Node binary reproduce the failure. The probe
+now runs its child with Node's `process.execPath`. It passes
+with the same path and binary.
+
+All 12 focused smoke tests and both linters passed. The
+controller fixture checks the generated command, the status,
+and the required success evidence. It caught 27 of 65 variants.
+Adding an isolated probe with the actual Node binary to the
+same mutmut 3.8.1 and pytest 9.2.0 selection caught 62 of 65.
+For the native repeat, run `check_workers_child` on that symlink
+in each variant and set `CHECK_TIMEOUT` to 3 seconds. Variants
+44 and 46 use the default text encoding, which writes the
+same ASCII program on the supported hosts. Variant 48 uses
+the equivalent `UTF-8` spelling.
+
 ## Tickets
 
 

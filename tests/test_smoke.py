@@ -69,6 +69,36 @@ class TestRunnerSmokeTest(unittest.TestCase):
                     smoke.check_node_test(self.node, self.work, self.fixtures)
 
 
+class WorkerSmokeTest(unittest.TestCase):
+    def test_child_uses_the_running_node_instead_of_interpolating_the_install_path(self):
+        scratch = ROOT / ".work/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        work = Path(self.enterContext(tempfile.TemporaryDirectory(prefix="owner's build ", dir=scratch)))
+        node = work / "node"
+        node.write_text(
+            "#!/bin/sh -e\n"
+            'test "$#" = 1 && test "$1" = "$PWD/worker-probe.cjs" || exit 8\n'
+            'case "$(cat "$1")" in\n'
+            "  *\"execFile(process.execPath, ['-p', '6*7']\"*);;\n"
+            '  *) printf "worker did not use the running node executable\\n" >&2; exit 8;;\n'
+            "esac\n"
+            'if test ! -e silent; then printf "workers ok\\n"; fi\n'
+            'if test -e failed; then printf "fixture stderr\\n" >&2; exit 9; fi\n',
+            encoding="utf-8",
+        )
+        node.chmod(0o755)
+        self.assertEqual(smoke.check_workers_child(node, work, work), "worker + child ok")
+
+        (work / "silent").touch()
+        with self.assertRaisesRegex(smoke.SmokeError, "^workers check failed: $"):
+            smoke.check_workers_child(node, work, work)
+
+        (work / "silent").unlink()
+        (work / "failed").touch()
+        with self.assertRaisesRegex(smoke.SmokeError, "^workers check failed: fixture stderr$"):
+            smoke.check_workers_child(node, work, work)
+
+
 class SmokeSuiteTest(unittest.TestCase):
     def test_records_failures_and_continues_with_addon_and_payload_checks(self):
         work = Path("/fixture/work")
