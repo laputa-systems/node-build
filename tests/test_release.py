@@ -223,7 +223,7 @@ class PackageRecordTest(unittest.TestCase):
         self.finding = validate_product.ProductFinding("fixture-layout", True, "present")
         self.hardening = {"deployment_target": "fixture target", "images": {"bin/node": {}}}
         self.install = self.enterContext(patch.object(package, "install_to_stage", return_value=self.stage))
-        self.enterContext(patch.object(package, "write_hardening_report", return_value=self.hardening))
+        self.report = self.enterContext(patch.object(package, "write_hardening_report", return_value=self.hardening))
 
     def assert_unpublished(self):
         self.assertFalse((self.root / "dist").exists())
@@ -278,28 +278,52 @@ class PackageRecordTest(unittest.TestCase):
 
     def test_packaging_links_receipt_and_archive(self):
         self.receipt.write_text(self.valid_receipt, encoding="utf-8")
-        (self.stage / "bin" / "npm").write_bytes(b"unshipped tool")
-        with patch.object(validate_product, "validate_install_tree", return_value=[self.finding]):
+        for relative in ("share/doc/readme", "lib/node_modules/npm/index.js", "bin/npm", "bin/npx", "lib/temp.pyc"):
+            item = self.stage / relative
+            item.parent.mkdir(parents=True, exist_ok=True)
+            item.write_bytes(b"unshipped file")
+        epoch = 1_700_000_000
+        with (
+            patch.object(validate_product, "validate_install_tree", return_value=[self.finding]) as validate,
+            patch.dict(os.environ, {"SOURCE_DATE_EPOCH": str(epoch)}),
+        ):
             result = package.package(self.root, TRIPLE, self.source)
+        stage_dir = self.stage.parent
+        self.install.assert_called_once_with(self.source, stage_dir, recipes.recipe_for_triple(TRIPLE))
+        target = targets.target_for_triple(TRIPLE)
+        self.report.assert_called_once_with(self.stage, target.machine, target.deployment_target,
+                                           stage_dir / "hardening-report.json")
+        validate.assert_called_once_with(self.stage, target.machine, target.deployment_target,
+                                         [os.fsencode(stage_dir)], [os.fsencode(self.source)])
         archive = self.root / "dist" / TRIPLE / product.archive_name(product.NODE_VERSION, TRIPLE)
         self.assertEqual(result, {
             "archive": str(archive),
             "sha256": hashing.sha256_file(archive),
             "build_receipt_sha256": hashing.sha256_file(self.receipt),
             "size": archive.stat().st_size,
-            "pruned": ["bin/npm"],
+            "pruned": ["share", "lib/node_modules", "bin/npm", "bin/npx", "lib/temp.pyc"],
             "hardening": self.hardening,
             "product_checks": [{"name": "fixture-layout", "ok": True, "detail": "present"}],
         })
         self.assertEqual(json.loads(self.record.read_text(encoding="utf-8")), result)
         with tarfile.open(archive) as image:
             prefix = product.INSTALL_DIRNAME
-            self.assertIn(f"{prefix}/bin/node", image.getnames())
-            self.assertNotIn(f"{prefix}/bin/npm", image.getnames())
+            self.assertEqual(image.getmember(f"{prefix}/bin/node").mtime, epoch)
+            members = image.getnames()
+            for relative in result["pruned"]:
+                dropped = f"{prefix}/{relative}"
+                self.assertFalse(any(name == dropped or name.startswith(f"{dropped}/") for name in members))
             license_file = image.extractfile(f"{prefix}/LICENSE")
             assert license_file is not None
             with license_file:
                 self.assertEqual(license_file.read(), b"fixture license")
+
+    def test_refuses_to_replace_an_existing_archive(self):
+        archive = self.root / "already-published.tar.xz"
+        archive.write_bytes(b"published")
+        with self.assertRaisesRegex(package.PackageError, "refusing to overwrite existing archive"):
+            package.create_archive(self.stage, archive)
+        self.assertEqual(archive.read_bytes(), b"published")
 
 
 class StageTripleTest(unittest.TestCase):
