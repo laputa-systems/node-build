@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
+import tomllib
 from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path, PurePosixPath
@@ -61,6 +63,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("base")
     parser.add_argument("buildlib_scripts", type=Path)
+    parser.add_argument("--qualified-modules", type=Path)
     args = parser.parse_args()
     sys.path.insert(0, str(args.buildlib_scripts.resolve(strict=True)))
     parse_changes = import_module("mutants_gate").parse_changes
@@ -69,8 +72,18 @@ def main() -> None:
         "git", "rev-parse", "--verify", "--end-of-options", f"{args.base}^{{commit}}",
     ], text=True).strip()
     data = subprocess.check_output(["git", "diff", "--name-status", "-M", "-z", f"{base}...HEAD"])
-    for path in select(parse_changes(data)):
-        print(path)
+    sources = select(parse_changes(data))
+    if args.qualified_modules is None:
+        print(*sources, sep="\n", end="\n" if sources else "")
+        return
+    with args.qualified_modules.open("rb") as stream:
+        dispositions = tomllib.load(stream)
+    modules = sorted(PurePosixPath(path).stem for path in sources if path in CRITICAL)
+    unknown = set(sources) - CRITICAL
+    unqualified = set(modules) - dispositions["qualified"].keys()
+    if unknown or unqualified:
+        raise ValueError(f"sources still need qualification: {sorted(unknown | unqualified)}")
+    print(json.dumps(modules))
 
 
 if __name__ == "__main__":

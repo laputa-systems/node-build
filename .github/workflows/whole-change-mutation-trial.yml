@@ -1,0 +1,106 @@
+name: whole-change mutation trial
+
+on: pull_request
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  plan:
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      modules: ${{ steps.select.outputs.modules }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: laputa-systems/buildlib
+          ref: 1497970d9454a6a9875b1f201cbaad71fd92a010
+          path: .work/buildlib
+          persist-credentials: false
+      - id: select
+        env:
+          BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+        run: |
+          modules=$(python3 .github/scripts/select_mutation_sources.py "$BASE_REVISION" .work/buildlib/scripts \
+            --qualified-modules .github/mutation-dispositions.toml)
+          printf 'Selected modules: %s\n' "$modules"
+          printf 'modules=%s\n' "$modules" >> "$GITHUB_OUTPUT"
+  controller:
+    needs: plan
+    if: needs.plan.outputs.modules != '[]'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.plan.outputs.modules) }}
+        runner: [ubuntu-26.04-arm, xcode-27]
+    env:
+      MODULE: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: laputa-systems/buildlib
+          ref: 1497970d9454a6a9875b1f201cbaad71fd92a010
+          path: .work/buildlib
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: 0.13.7
+      - run: uv python install 3.15.2
+      - name: Verify mutation results
+        run: |
+          root="$PWD"
+          reader="$root/.work/buildlib/scripts"
+          mkdir -p "$root/.work/tmp"
+          export TMPDIR="$root/.work/tmp"
+          source="buildsys/$MODULE.py"
+          git ls-tree -r --full-tree HEAD | awk '$1 == "120000" || $1 == "160000" { exit 1 }'
+          case "$MODULE" in
+            budgets) tests='["tests/test_controller.py::ArchiveBudgetTest"]' ;;
+            comparison) tests='["tests/test_compare.py"]' ;;
+            inputs) tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest", "tests/test_controller.py::BuildReceiptTest", "tests/test_release.py::PackageRecordTest"]' ;;
+            package) tests='["tests/test_release.py", "tests/test_product.py"]' ;;
+            release) tests='["tests/test_release.py"]' ;;
+            targets) tests='["tests/test_controller.py::TargetTest", "tests/test_controller.py::RecipesTest", "tests/test_release.py"]' ;;
+            *) exit 2 ;;
+          esac
+          case "$MODULE" in
+            package|release) export LC_ALL=C PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 PYTHONIOENCODING=utf-8 ;;
+          esac
+          proof="$root/.work/tmp/whole-change-$MODULE"
+          mkdir -p "$proof/.work/tmp"
+          touch "$proof/.work/tmp/.keep"
+          export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+          git archive HEAD | tar -x -C "$proof"
+          cat >> "$proof/pyproject.toml" <<TOML
+
+          [tool.mutmut]
+          source_paths = ["buildsys"]
+          only_mutate = ["$source"]
+          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json",
+                       "pyproject.toml", "uv.lock", ".github", ".work/tmp"]
+          pytest_add_cli_args_test_selection = $tests
+          use_setproctitle = false
+          TOML
+          uv run --frozen --python 3.15.2 --with mutmut==3.8.1 --with pytest==9.2.0 bash -euc '
+            cd "$1"
+            python -m mutmut run --max-children 1 "buildsys.$2.*"
+          ' node-proof "$proof" "$MODULE"
+          uv run --frozen --python 3.15.2 python .github/scripts/check_mutation_results.py \
+            "$source" "$proof" .github/mutation-dispositions.toml "$reader"

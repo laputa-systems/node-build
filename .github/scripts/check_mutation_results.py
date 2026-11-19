@@ -39,7 +39,8 @@ def main() -> None:
         dispositions = tomllib.load(stream)
     host = platform.system()
     try:
-        record = dispositions["qualified"][module][host]
+        module_record = dispositions["qualified"][module]
+        record = {"source_sha256": module_record["source_sha256"], "survivors": module_record[host]}
     except KeyError as error:
         raise ValueError(f"missing dispositions for {module} on {host}") from error
 
