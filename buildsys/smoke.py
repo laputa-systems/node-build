@@ -300,7 +300,7 @@ def check_workers_child(node: Path, work: Path, fixtures: Path) -> str:
         "  });"
         "  if (value !== 42) { process.exit(1); }"
         "  const child = await new Promise((resolve, reject) => {"
-        f"    execFile('{node}', ['-p', '6*7'], (error, stdout) => {{"
+        "    execFile(process.execPath, ['-p', '6*7'], (error, stdout) => {"
         "      if (error) { reject(error); } else { resolve(stdout.trim()); }"
         "    });"
         "  });"
