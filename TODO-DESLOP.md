@@ -429,6 +429,28 @@ Removing the status check made that test fail. Run the
 `ReleaseInputTest` cases to reproduce both controls. All 34 release
 cases and both linters passed.
 
+The Git probe tests now exercise an unborn checkout, a checkout path
+containing a newline and a trailing space, a user preference that
+hides untracked files, and the existing 60-second query deadline.
+On macOS ARM64 the exact 92 query and record identities moved from
+70 catches before #45 to 73 with #45 and 83 with these cases. No
+previous catches were lost. The three runs used the same
+`buildsys/release.py` and tests selected with
+`-k 'ReleaseInputTest or git_probe_timeout'`.
+
+Use the preceding archive recipe with the patterns for `_git_query`,
+`git_revision`, `git_dirty`, `clean_build_revision` and `load_record`.
+A separate `load_record` run used `LC_ALL=C PYTHONUTF8=0
+PYTHONCOERCECLOCALE=0 PYTHONIOENCODING=utf-8`. It caught nine of ten,
+including the omitted UTF-8 encoding. The remaining codec spelling
+is equivalent. On case-sensitive Alpine 3.24.2 ARM64, Git 2.54.1
+successfully ran `git rev-parse --show-toplevel HEAD` in an isolated
+checkout and rejected `head`. The two `check` argument variants
+match the subprocess default. The two `rstrip` variants remove the
+same final newline after a hexadecimal revision. Two variants add
+sentinel text to existing errors while preserving the error category
+and message content. These account for all nine macOS survivors.
+
 ## Tickets
 
 
