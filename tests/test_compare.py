@@ -155,6 +155,25 @@ class ComparisonTest(unittest.TestCase):
         report = work / "compare-record.json"
         self.assertEqual(json.loads(report.read_text()), record)
 
+    def test_comparison_reuses_work_directory_and_replaces_report(self):
+        work = self.root / "build" / self.triple / "compare-work"
+        report = work / "compare-record.json"
+        with (
+            patch.object(benchmarks, "time_process", return_value=10.0),
+            patch.object(benchmarks, "time_probe", return_value=20.0),
+        ):
+            for version in ("v26.12.1", "v26.12.2"):
+                with self.subTest(version=version):
+                    for binary in (self.candidate, self.reference):
+                        binary.write_text(
+                            '#!/bin/sh\n[ "${PWD##*/}" = compare-work ] || exit 6\n'
+                            f"printf '%s\\n' {version}\n",
+                            encoding="utf-8",
+                        )
+                    result = comparison.compare(self.root, self.triple, str(self.reference))
+                    self.assertEqual(result["node_version"], version)
+                    self.assertEqual(json.loads(report.read_text(encoding="utf-8")), result)
+
 
 if __name__ == "__main__":
     unittest.main()
