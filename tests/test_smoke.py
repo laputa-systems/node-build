@@ -1,4 +1,5 @@
 import io
+import os
 import subprocess
 import tempfile
 import time
@@ -139,3 +140,139 @@ class InspectorSmokeTest(unittest.TestCase):
             error=r"inspector list unexpected: \[\]",
             response_body=b"[]",
         )
+
+
+class CommandSmokeContract(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(dir=ROOT / ".work" / "tmp")
+        self.addCleanup(temporary.cleanup)
+        self.work = Path(temporary.name)
+        self.node = self.work / "node fixture"
+        self.node.write_text(
+            "#!/bin/sh -e\n"
+            'case "$1" in\n'
+            '  --version) cat version;;\n'
+            '  -h|--help) cat "help.$1";;\n'
+            "  -p) test \"$2\" = 'JSON.stringify({answer:42})'; cat evaluate;;\n"
+            '  --completion-bash) cat completion;;\n'
+            '  -e) test -f addon.node; test "$2" = "$(cat addon-script)"; printf "addon ok\\n";;\n'
+            '  *) exit 8;;\n'
+            'esac\n'
+            'if [ -f "stderr.$1" ]; then cat "stderr.$1" >&2; fi\n'
+            'if [ -f "status.$1" ]; then exit "$(cat "status.$1")"; fi\n',
+            encoding="utf-8",
+        )
+        self.node.chmod(0o755)
+        self.help = "Usage: node [options]\n" + smoke.OWNED_FOOTER + "\n"
+        for name, body in (
+            ("version", "v26.12.1\n"), ("evaluate", '{"answer":42}\n'),
+            ("help.-h", self.help), ("help.--help", self.help), ("completion", "complete -F _node node\n"),
+            ("addon-script", "const addon = require('./addon.node'); if (addon.answer() !== 42) { process.exit(1); } console.log('addon ok');"),
+        ):
+            (self.work / name).write_text(body, encoding="utf-8")
+
+    def test_version_and_help_probe_statuses_and_contents(self):
+        self.assertEqual(smoke.check_version(self.node, self.work, self.work), "v26.12.1")
+        self.assertEqual(
+            smoke.check_help_footer(self.node, self.work, self.work),
+            "help footer, version, JSON and completion ok",
+        )
+        for name, invalid, diagnostic in (
+            ("help.-h", self.help.replace("Usage: node", "options"), "-h footer or help unexpected"),
+            ("help.--help", "header\n" + self.help, "^-h and --help differ$"),
+            ("help.-h", "Usage: node\n" + smoke.OWNED_FOOTER + "\n" + self.help, "-h footer or help unexpected"),
+            ("help.-h", self.help.rstrip(), "-h footer or help unexpected"),
+            ("version", "v26.12.0\n", "unexpected output for --version"),
+            ("evaluate", '{"answer":41}\n', "unexpected output for -p"),
+            ("completion", smoke.OWNED_FOOTER, "^completion output unexpected$"),
+        ):
+            with self.subTest(name=name, diagnostic=diagnostic):
+                path = self.work / name
+                original = path.read_text(encoding="utf-8")
+                path.write_text(invalid, encoding="utf-8")
+                try:
+                    with self.assertRaisesRegex(smoke.SmokeError, diagnostic):
+                        smoke.check_help_footer(self.node, self.work, self.work)
+                finally:
+                    path.write_text(original, encoding="utf-8")
+        for name, value, error in (
+            ("stderr.-h", "fixture stderr", "^-h footer or help unexpected$"),
+            ("status.-h", "8", "^-h footer or help unexpected$"),
+            ("stderr.--version", "fixture stderr", "^unexpected output for --version$"),
+            ("status.-p", "8", "^unexpected output for -p$"),
+        ):
+            with self.subTest(name=name):
+                path = self.work / name
+                path.write_text(value, encoding="utf-8")
+                try:
+                    with self.assertRaisesRegex(smoke.SmokeError, error):
+                        smoke.check_help_footer(self.node, self.work, self.work)
+                finally:
+                    path.unlink()
+        version = self.work / "version"
+        version.write_text("v26.12.0", encoding="utf-8")
+        with self.assertRaisesRegex(smoke.SmokeError, r"^version v26\.12\.0 != v26\.12\.1$"):
+            smoke.check_version(self.node, self.work, self.work)
+        version.unlink()
+        with self.assertRaisesRegex(smoke.SmokeError, "^--version failed: .*"):
+            smoke.check_version(self.node, self.work, self.work)
+
+    def test_excluded_programs_do_not_ship(self):
+        install = self.work / "install"
+        (install / "bin").mkdir(parents=True)
+        self.assertEqual(
+            smoke.check_exclusions(self.node, self.work, self.work, install),
+            "npm/npx absent, --help ok",
+        )
+        for program in ("npm", "npx"):
+            candidate = install / "bin" / program
+            candidate.touch()
+            try:
+                with self.assertRaisesRegex(smoke.SmokeError, f"^excluded payload present: bin/{program}$"):
+                    smoke.check_exclusions(self.node, self.work, self.work, install)
+            finally:
+                candidate.unlink()
+        (self.work / "help.--help").write_text("fixture help", encoding="utf-8")
+        with self.assertRaisesRegex(smoke.SmokeError, "^--help unexpected: fixture help$"):
+            smoke.check_exclusions(self.node, self.work, self.work, install)
+
+    def test_addon_compiles_with_platform_flags_and_is_loaded_from_workdir(self):
+        compiler = (
+            "#!/bin/sh -e\n"
+            'printf "%s\\n" "$@" > "$FIXTURE_ARGUMENTS"\n'
+            'for arg do destination="$arg"; done\n'
+            'printf "addon fixture" > "$destination"\n'
+        )
+        headers = self.work / "shipped headers"
+        arguments = self.work / "compiler-args"
+        package = self.work / "addon.node"
+        for triple, name, flags in (
+            ("x86_64-unknown-linux-musl", "g++", ["-shared", "-fPIC"]),
+            ("aarch64-apple-darwin", "clang++", ["-bundle", "-undefined", "dynamic_lookup"]),
+        ):
+            with self.subTest(triple=triple):
+                tool = self.work / name
+                tool.write_text(compiler, encoding="utf-8")
+                tool.chmod(0o755)
+                with patch.dict(os.environ, {"PATH": f"{self.work}:{os.environ['PATH']}", "FIXTURE_ARGUMENTS": str(arguments)}):
+                    with patch.object(smoke.subprocess, "run", wraps=subprocess.run) as run:
+                        self.assertEqual(
+                            smoke.check_napi_addon(self.node, self.work, self.work, headers, triple),
+                            "compiled against shipped headers and loaded",
+                        )
+                        self.assertEqual(run.call_args_list[0].kwargs["timeout"], 60)
+                    self.assertEqual(package.read_bytes(), b"addon fixture")
+                    self.assertEqual(arguments.read_text().splitlines(), [
+                        *flags, f"-I{headers}", str(self.work / "smoke/addon.cc"), "-o", str(package),
+                    ])
+                    status = self.work / "status.-e"
+                    status.write_text("8", encoding="utf-8")
+                    error = self.work / "stderr.-e"
+                    error.write_text("load failure", encoding="utf-8")
+                    with self.assertRaisesRegex(smoke.SmokeError, "^addon load failed: load failure$"):
+                        smoke.check_napi_addon(self.node, self.work, self.work, headers, triple)
+                    status.unlink()
+                    error.unlink()
+                    tool.write_text('#!/bin/sh\nprintf "compile failure\\n" >&2\nexit 9\n', encoding="utf-8")
+                    with self.assertRaisesRegex(smoke.SmokeError, "^addon compile failed: compile failure"):
+                        smoke.check_napi_addon(self.node, self.work, self.work, headers, triple)

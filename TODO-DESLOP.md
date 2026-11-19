@@ -860,6 +860,22 @@ routes ordinary commands into controller discovery. Selecting
 the same variant. The broader timeout remains distinct from
 the test catches. All six CLI tests and lint passed.
 
+
+### Version, help, addon and excluded payload probes
+
+The staged executable fixture exercises version and help content,
+exit status, stderr, footer uniqueness, and completion output.
+Native-addon fixtures verify both compiler argument sets, the
+deadline, the generated load command and the compiler and load
+failure paths. Either excluded executable fails admission.
+
+The four selected functions caught 210 of 217 identities on
+macOS ARM64 using `tests/test_smoke.py`. Seven variants change
+path case, default Darwin spellings that take the same branch,
+or the falsey default subprocess check. The native repeat
+and wider smoke inventory stay under DSLP-4. All nine smoke
+tests and lint passed.
+
 ## Tickets
 
 
