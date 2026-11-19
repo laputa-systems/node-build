@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -202,44 +203,103 @@ class PackageStageTest(unittest.TestCase):
 
 
 class PackageRecordTest(unittest.TestCase):
-    def test_packaging_links_receipt_and_archive(self):
+    def setUp(self):
         tmp_root = REPO_ROOT / ".work" / "tmp"
         tmp_root.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=tmp_root) as scratch:
-            root = Path(scratch)
-            source = root / "source"
-            source.mkdir()
-            (source / "LICENSE").write_text("fixture license")
-            receipt = root / "build" / TRIPLE / "build-receipt.json"
-            stage = root / "fixture-install"
-            (stage / "bin").mkdir(parents=True)
-            (stage / "bin" / "node").write_bytes(b"fixture binary")
-            with (
-                patch.object(package, "install_to_stage", return_value=stage) as install,
-                patch.object(package, "write_hardening_report", return_value={}),
-                patch.object(validate_product, "validate_install_tree", return_value=[
-                    validate_product.ProductFinding("fixture", True, ""),
-                ]),
-            ):
-                with self.assertRaisesRegex(package.PackageError, "missing build receipt"):
-                    package.package(root, TRIPLE, source)
-                install.assert_not_called()
-                receipt.parent.mkdir(parents=True)
-                receipt.write_text('{"fixture": true}\n')
+        scratch = tempfile.TemporaryDirectory(dir=tmp_root)
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        self.source = self.root / "source"
+        self.source.mkdir()
+        (self.source / "LICENSE").write_bytes(b"fixture license")
+        self.receipt = self.root / "build" / TRIPLE / "build-receipt.json"
+        self.receipt.parent.mkdir(parents=True)
+        self.record = self.receipt.with_name("package-record.json")
+        self.stage = self.receipt.parent / "stage" / product.INSTALL_DIRNAME
+        self.node = self.stage / "bin" / "node"
+        self.node.parent.mkdir(parents=True)
+        self.node.write_bytes(b"fixture binary")
+        self.valid_receipt = json.dumps({"built_node_sha256": hashing.sha256_file(self.node)})
+        self.finding = validate_product.ProductFinding("fixture-layout", True, "present")
+        self.hardening = {"deployment_target": "fixture target", "images": {"bin/node": {}}}
+        self.install = self.enterContext(patch.object(package, "install_to_stage", return_value=self.stage))
+        self.enterContext(patch.object(package, "write_hardening_report", return_value=self.hardening))
+
+    def assert_unpublished(self):
+        self.assertFalse((self.root / "dist").exists())
+        self.assertFalse(self.record.exists())
+
+    def test_rejects_bad_receipts_before_installing(self):
+        with self.assertRaisesRegex(package.PackageError, "missing build receipt"):
+            package.package(self.root, TRIPLE, self.source)
+        self.receipt.write_text("{", encoding="utf-8")
+        with self.assertRaisesRegex(package.PackageError, "invalid build receipt"):
+            package.package(self.root, TRIPLE, self.source)
+        invalid_digests = (1, "", "a" * 63, "a" * 65, "A" * 64)
+        invalid_receipts = [[], {}, *({"built_node_sha256": digest} for digest in invalid_digests)]
+        for document in invalid_receipts:
+            with self.subTest(document=document):
+                self.receipt.write_text(json.dumps(document), encoding="utf-8")
                 with self.assertRaisesRegex(package.PackageError, "build receipt has no node binary digest"):
-                    package.package(root, TRIPLE, source)
-                install.assert_not_called()
-                receipt.write_text(json.dumps({"built_node_sha256": "0" * 64}))
-                with self.assertRaisesRegex(package.PackageError, "installed node does not match build receipt"):
-                    package.package(root, TRIPLE, source)
-                self.assertFalse((root / "dist").exists())
-                self.assertFalse((receipt.parent / "package-record.json").exists())
-                receipt.write_text(json.dumps({"built_node_sha256": hashing.sha256_file(stage / "bin" / "node")}))
-                result = package.package(root, TRIPLE, source)
-            archive = Path(result["archive"])
-            record = json.loads((receipt.parent / "package-record.json").read_text())
-            self.assertEqual(record["build_receipt_sha256"], hashing.sha256_file(receipt))
-            self.assertEqual(record["sha256"], hashing.sha256_file(archive))
+                    package.package(self.root, TRIPLE, self.source)
+        self.install.assert_not_called()
+        self.assert_unpublished()
+
+    def test_rejects_changed_or_missing_installed_binary(self):
+        self.receipt.write_text(self.valid_receipt, encoding="utf-8")
+        self.node.write_bytes(b"different binary")
+        with self.assertRaisesRegex(package.PackageError, "installed node does not match build receipt"):
+            package.package(self.root, TRIPLE, self.source)
+        self.node.unlink()
+        with self.assertRaisesRegex(package.PackageError, "installed node does not match build receipt"):
+            package.package(self.root, TRIPLE, self.source)
+        self.assert_unpublished()
+
+    def test_does_not_publish_after_a_failed_product_check_or_receipt_change(self):
+        self.receipt.write_text(self.valid_receipt, encoding="utf-8")
+        failure = validate_product.ProductFinding("fixture-layout", False, "missing")
+        with (
+            patch.object(validate_product, "validate_install_tree", return_value=[failure]),
+            self.assertRaisesRegex(validate_product.GateError, "fixture-layout"),
+        ):
+            package.package(self.root, TRIPLE, self.source)
+        self.assert_unpublished()
+
+        def change_receipt(*_args):
+            self.receipt.write_text(self.valid_receipt + "\n", encoding="utf-8")
+            return [self.finding]
+
+        with (
+            patch.object(validate_product, "validate_install_tree", side_effect=change_receipt),
+            self.assertRaisesRegex(package.PackageError, "build receipt changed while packaging"),
+        ):
+            package.package(self.root, TRIPLE, self.source)
+        self.assert_unpublished()
+
+    def test_packaging_links_receipt_and_archive(self):
+        self.receipt.write_text(self.valid_receipt, encoding="utf-8")
+        (self.stage / "bin" / "npm").write_bytes(b"unshipped tool")
+        with patch.object(validate_product, "validate_install_tree", return_value=[self.finding]):
+            result = package.package(self.root, TRIPLE, self.source)
+        archive = self.root / "dist" / TRIPLE / product.archive_name(product.NODE_VERSION, TRIPLE)
+        self.assertEqual(result, {
+            "archive": str(archive),
+            "sha256": hashing.sha256_file(archive),
+            "build_receipt_sha256": hashing.sha256_file(self.receipt),
+            "size": archive.stat().st_size,
+            "pruned": ["bin/npm"],
+            "hardening": self.hardening,
+            "product_checks": [{"name": "fixture-layout", "ok": True, "detail": "present"}],
+        })
+        self.assertEqual(json.loads(self.record.read_text(encoding="utf-8")), result)
+        with tarfile.open(archive) as image:
+            prefix = product.INSTALL_DIRNAME
+            self.assertIn(f"{prefix}/bin/node", image.getnames())
+            self.assertNotIn(f"{prefix}/bin/npm", image.getnames())
+            license_file = image.extractfile(f"{prefix}/LICENSE")
+            assert license_file is not None
+            with license_file:
+                self.assertEqual(license_file.read(), b"fixture license")
 
 
 class StageTripleTest(unittest.TestCase):
