@@ -543,6 +543,78 @@ class ConfigureMarkerTest(unittest.TestCase):
             self.assertTrue(node.needs_configure(source, root, triple, recipe))
 
 
+    def test_matching_marker_requires_a_generated_config_file(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            triple = "aarch64-apple-darwin"
+            source = root / "source"
+            source.mkdir()
+            config = source / "config.mk"
+            config.mkdir()
+            recipe = recipes.recipe_for_triple(triple)
+            marker = node.configured_marker(root, triple)
+            marker.parent.mkdir(parents=True)
+            marker.write_text(json.dumps({"recipe_sha256": node.recipe_fingerprint(recipe)}))
+            self.assertTrue(node.needs_configure(source, root, triple, recipe))
+            config.rmdir()
+            config.touch()
+            self.assertFalse(node.needs_configure(source, root, triple, recipe))
+
+    def test_recipe_fingerprint_binds_order_independent_recipe_and_patch_level(self):
+        recipe = {"configure": ["--prefix=/usr"], "cflags": ["-g", "-O2"]}
+        serialized = b'{"patch_level": 2, "recipe": {"cflags": ["-g", "-O2"], "configure": ["--prefix=/usr"]}}'
+        fingerprint = hashlib.sha256(serialized).hexdigest()
+        self.assertEqual(node.recipe_fingerprint(recipe), fingerprint)
+        self.assertEqual(node.recipe_fingerprint(dict(reversed(list(recipe.items())))), fingerprint)
+        self.assertNotEqual(node.recipe_fingerprint({**recipe, "cflags": ["-g"]}), fingerprint)
+        with patch.object(node, "PATCH_LEVEL", 3):
+            self.assertNotEqual(node.recipe_fingerprint(recipe), fingerprint)
+
+    def test_configure_receipt_follows_only_a_successful_command(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
+            root = Path(scratch)
+            triple = "aarch64-apple-darwin"
+            source = root / "source with spaces"
+            source.mkdir()
+            configure = source / "configure"
+            configure.write_text(
+                '#!/bin/sh\nprintf "fixture stdout\\n"\nprintf "fixture stderr\\n" >&2\nexit 7\n',
+                encoding="utf-8",
+            )
+            configure.chmod(0o755)
+            recipe = {**recipes.recipe_for_triple(triple), "cflags": ["-g", "-O2"]}
+            configured = root / "build" / triple / "configured.json"
+            with (
+                patch.object(node.subprocess, "run", wraps=subprocess.run) as run,
+                self.assertRaises(node.BuildError) as raised,
+            ):
+                node.run_configure(source, root, triple, recipe)
+            self.assertEqual(str(raised.exception), "configure failed:\nfixture stdout\n\nfixture stderr\n")
+            self.assertEqual(run.call_args.kwargs["timeout"], 600)
+            self.assertFalse(configured.exists())
+            self.assertTrue(node.needs_configure(source, root, triple, recipe))
+
+            configure.write_text(
+                '#!/bin/sh\n'
+                'printf "%s\\n" "$MACOSX_DEPLOYMENT_TARGET" "$CFLAGS" "$CXXFLAGS" "$@" > config.mk\n',
+                encoding="utf-8",
+            )
+            node.run_configure(source, root, triple, recipe)
+            flags = " ".join(recipe["cflags"])
+            self.assertEqual((source / "config.mk").read_text().splitlines(), [
+                recipe["deployment_target"], flags, flags, *recipe["configure"],
+            ])
+            self.assertEqual(json.loads(configured.read_text()), {
+                "recipe_sha256": node.recipe_fingerprint(recipe),
+                "command": ["./configure", *recipe["configure"]],
+            })
+            self.assertFalse(node.needs_configure(source, root, triple, recipe))
+            for content in (b"[]", b"{", b"\xff", b'{"recipe_sha256":"different"}'):
+                with self.subTest(marker=content):
+                    configured.write_bytes(content)
+                    self.assertTrue(node.needs_configure(source, root, triple, recipe))
+
+
 class BootstrapTest(unittest.TestCase):
     def test_doctor_rejects_malformed_lock_sections_before_inspecting_host(self):
         base = json.loads((REPO_ROOT / "bootstrap.lock.json").read_text())

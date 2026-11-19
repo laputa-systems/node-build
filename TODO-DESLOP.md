@@ -769,6 +769,83 @@ image argument. Use the release archive recipe with
 Mach-O, installed-product and ELF fixtures. All 19 focused checks
 and both linters passed.
 
+### Architecture smoke probe
+
+The architecture check now requires a successful subprocess exit
+before accepting the reported identity. A real shell fixture prints
+the expected Linux identity and exits 7. The previous check accepted
+that output. The fixed check reports the exit and stderr, and the
+matching successful probe still passes. A separate suite fixture
+checks continuation after subprocess timeout, probe failure and an
+unavailable addon compiler.
+
+The focused `run_node`, `check_arch` and `run_suite` selection caught
+103 of 143 identities with `tests/test_smoke.py`. The rest of the
+smoke controller and focused survivors remain in DSLP-4. Both new
+tests and both linters passed.
+
+
+### Inspector announcement deadline
+
+A subprocess that wrote partial stderr and stayed alive held
+`check_inspector` in a blocking read. A separate successful fixture showed
+its child remained unreaped on return. Read only when the pipe is ready,
+bound the announcement buffer and wait for the killed child on exit.
+
+The fixtures exercise the written script, inspector arguments, partial
+stderr, an announcement with or without a newline, an empty target
+list, and invalid UTF-8 before EOF. All six smoke tests and lint
+passed. A focused macOS ARM64 run using mutmut 3.8.1 and pytest 9.2.0
+caught 72 of 90 inspector identities. The remaining 18 stay in
+DSLP-4. Reuse the smoke recipe above with
+`buildsys.smoke.x_check_inspector__mutmut_*`.
+
+
+
+### Mach-O entrypoint kind
+
+The installed-tree fixture names a Mach-O shared library `bin/node`
+and supplies a separate valid executable. The old product check
+accepted this layout. It now checks the kind of the named entrypoint.
+Replacing that file with the executable makes the same fixture pass.
+
+All 32 product tests and lint passed. The current archive selection
+using the product and release suites caught 323 of 514 identities on
+macOS ARM64. This scope includes 163 of 273 in `macho_tree_checks`.
+The remaining identities stay under DSLP-4.
+
+
+### Configure receipt reuse
+
+A matching receipt and a directory named `config.mk` previously
+skipped configuration. Reuse now requires a generated file. The
+real shell fixture checks the configure flags, deployment target,
+working directory with spaces, the 600-second subprocess deadline,
+captured diagnostics and receipt creation after success. The same
+recipe fingerprint binds the canonical recipe and patch level.
+
+All four focused tests and lint passed. The five-function selection
+for configuration environment, marker, fingerprint, reuse, and
+command caught 105 of 114 on macOS ARM64. The other nine stay in
+DSLP-4. Reuse the controller mutation recipe with
+`tests/test_controller.py::ConfigureMarkerTest`.
+
+
+### CLI target admission
+
+Explicit unsupported targets now return status 2 and a stderr
+diagnostic naming the command, option, and help invocation. Before
+this change, six commands raised uncaught errors and two reported
+unrelated missing inputs. The existing native target and job
+defaults still reach the same controller calls. Assembly continues
+to accept a comma-separated target list and rejects an unsupported
+member before reading checkout state.
+
+The ten command controls cover the parked Linux ARM64 spelling and
+a mixed assembly list, with valid build and reproduction controls
+for stdout and argument forwarding. All 51 focused tests and lint
+passed.
+
 ## Tickets
 
 
