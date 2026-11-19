@@ -138,9 +138,7 @@ def needs_configure(source: Path, repo_root: Path, triple: str, recipe: dict) ->
     if not isinstance(recorded, dict):
         return True
     recorded_fingerprint: object = recorded.get("recipe_sha256")
-    return recorded_fingerprint != recipe_fingerprint(recipe) or not (
-        source / "config.mk"
-    ).exists()
+    return recorded_fingerprint != recipe_fingerprint(recipe) or not (source / "config.mk").is_file()
 
 
 def run_configure(source: Path, repo_root: Path, triple: str, recipe: dict) -> None:

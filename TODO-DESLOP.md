@@ -814,6 +814,22 @@ using the product and release suites caught 323 of 514 identities on
 macOS ARM64. This scope includes 163 of 273 in `macho_tree_checks`.
 The remaining identities stay under DSLP-4.
 
+
+### Configure receipt reuse
+
+A matching receipt and a directory named `config.mk` previously
+skipped configuration. Reuse now requires a generated file. The
+real shell fixture checks the configure flags, deployment target,
+working directory with spaces, the 600-second subprocess deadline,
+captured diagnostics and receipt creation after success. The same
+recipe fingerprint binds the canonical recipe and patch level.
+
+All four focused tests and lint passed. The five-function selection
+for configuration environment, marker, fingerprint, reuse, and
+command caught 105 of 114 on macOS ARM64. The other nine stay in
+DSLP-4. Reuse the controller mutation recipe with
+`tests/test_controller.py::ConfigureMarkerTest`.
+
 ## Tickets
 
 
