@@ -4,18 +4,10 @@ import argparse
 import platform
 import sys
 import tomllib
-from collections import Counter
 from importlib import import_module
 from pathlib import Path
 
 from select_mutation_sources import CRITICAL
-
-
-def regular_file(root: Path, relative: str) -> Path:
-    path = root / relative
-    if path.is_symlink() or not path.is_file() or path.resolve() != path:
-        raise ValueError(f"expected a regular file in the checkout: {relative}")
-    return path
 
 
 def main() -> None:
@@ -27,12 +19,7 @@ def main() -> None:
     args = parser.parse_args()
     sys.path.insert(0, str(args.buildlib_scripts.resolve(strict=True)))
     gate = import_module("mutants_gate")
-    root = args.checkout.resolve(strict=True)
-    source = regular_file(root, args.source)
-    generated = regular_file(root, f"mutants/{args.source}")
-    meta = regular_file(root, f"mutants/{args.source}.meta")
-    spans = regular_file(root, f"mutants/{args.source}.spans")
-    module = source.stem
+    module = Path(args.source).stem
     prefix = f"buildsys.{module}."
 
     with args.dispositions.open("rb") as stream:
@@ -45,18 +32,10 @@ def main() -> None:
         raise ValueError(f"missing dispositions for {module} on {host}") from error
 
     try:
-        outcomes = gate.read_results(meta, spans, prefix)
-        allowed = gate.qualified_survivors(source, generated, spans, prefix, record)
+        counts = gate.verify_trial_results(args.checkout, args.source, prefix, record)
     except gate.GateError as error:
         raise ValueError(str(error)) from error
-    print(f"{module} on {host}: {dict(sorted(Counter(outcomes.values()).items()))}")
-    unqualified = [
-        f"{outcome}: {name}"
-        for name, outcome in sorted(outcomes.items())
-        if outcome != "killed" and not (outcome == "survived" and name in allowed)
-    ]
-    if unqualified:
-        raise ValueError("unqualified mutation outcomes:\n" + "\n".join(unqualified))
+    print(f"{module} on {host}: {counts}")
 
 
 if __name__ == "__main__":
