@@ -73,7 +73,6 @@ def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
             attempts[0]["normalized_sha256"] == attempts[1]["normalized_sha256"]
         ),
         "differing_chunk_offsets": chunks,
-        "verdict": "",
     }
     if record["raw_match"]:
         record["verdict"] = "bit-for-bit reproducible"

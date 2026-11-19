@@ -15,13 +15,16 @@ from buildlib import macho
 
 from buildsys import (
     macho_paths,
+    node,
     product,
     qualify_runner,
     relocate,
+    reproduce,
     smoke,
     validate_product,
 )
 from buildsys import package as packager
+from tests.test_elf import build_image
 
 
 def build_version_command(platform: int = 1, minos: int = 26 << 16,
@@ -211,6 +214,84 @@ class QualificationReceiptTest(unittest.TestCase):
             self.assertEqual(result, json.loads(self.receipt.read_text(encoding="utf-8")))
             self.assertEqual(result["smoke_total"], 1)
             self.assertEqual(result["smoke_passed"], 1)
+
+
+class ReproduceReceiptTest(unittest.TestCase):
+    def check_reproduction(self, triple, images, normalized, verdict, offsets, *, previous=True):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as temp:
+            root = Path(temp)
+            work = root / "build" / triple
+            source = root / "build" / "src"
+            retained = root / "build" / "reproduce-keep"
+            unrelated = root / "build" / "other-target"
+            if previous:
+                for directory in (work, source, retained, unrelated):
+                    directory.mkdir(parents=True, exist_ok=True)
+                    (directory / "old").write_bytes(b"previous")
+            remaining = iter(images)
+
+            def build_fresh(repo, target, jobs):
+                self.assertEqual((repo, target, jobs), (root, triple, 3))
+                self.assertFalse(work.exists())
+                self.assertFalse(source.exists())
+                source.mkdir()
+                work.mkdir()
+                output = work / "node"
+                output.write_bytes(next(remaining))
+                return output
+
+            with patch.object(node, "build", side_effect=build_fresh) as builder:
+                result = reproduce.reproduce(root, triple, 3)
+            self.assertEqual(builder.call_count, 2)
+            if previous:
+                self.assertEqual((unrelated / "old").read_bytes(), b"previous")
+            self.assertIn("build", {path.name for path in root.iterdir()})
+            self.assertIn("reproduce-keep", {path.name for path in retained.parent.iterdir()})
+            self.assertIn("reproduce-record.json", {path.name for path in work.iterdir()})
+            self.assertEqual(sorted(path.name for path in retained.iterdir()), ["attempt-1-node", "attempt-2-node"])
+            self.assertEqual((retained / "attempt-1-node").read_bytes(), images[0])
+            self.assertEqual((retained / "attempt-2-node").read_bytes(), images[1])
+            self.assertEqual(result, {
+                "triple": triple,
+                "attempts": [
+                    {
+                        "attempt": index,
+                        "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                        "normalized_sha256": hashlib.sha256(clean).hexdigest(),
+                        "size": len(raw),
+                    }
+                    for index, (raw, clean) in enumerate(zip(images, normalized, strict=True), 1)
+                ],
+                "raw_match": images[0] == images[1],
+                "normalized_match": normalized[0] == normalized[1],
+                "differing_chunk_offsets": offsets,
+                "verdict": verdict,
+            })
+            self.assertEqual(json.loads((work / "reproduce-record.json").read_text(encoding="utf-8")), result)
+
+    def test_persists_exact_normalized_and_divergent_macho_results(self):
+        first = make_macho([struct.pack("<II16s", macho.LC_UUID, 24, bytes(range(16)))])
+        relink = make_macho([struct.pack("<II16s", macho.LC_UUID, 24, bytes(reversed(range(16))))])
+        clean = make_macho([struct.pack("<II16s", macho.LC_UUID, 24, bytes(16))])
+        triple = "aarch64-apple-darwin"
+        cases = (
+            (first, clean, "bit-for-bit reproducible", []),
+            (relink, clean, "content identical outside Mach-O signing metadata (UUID and ad-hoc signature regenerate per link)", []),
+            (relink + b"changed", clean + b"changed", "content differs beyond signing metadata; not reproducible", [0, len(clean)]),
+        )
+        for second, clean_second, verdict, offsets in cases:
+            with self.subTest(verdict=verdict):
+                self.check_reproduction(triple, (first, second), (clean, clean_second), verdict, offsets)
+
+    def test_reports_elf_build_id_only_changes(self):
+        first = build_image()
+        self.assertEqual(first[-20:], bytes([171]) * 20)
+        second = first[:-20] + bytes(range(20))
+        clean = first[:-20] + bytes(20)
+        self.check_reproduction(
+            "x86_64-unknown-linux-musl", (first, second), (clean, clean),
+            "content identical outside ELF build-ID (NT_GNU_BUILD_ID regenerates per link)", [], previous=False,
+        )
 
 
 class RelocateTest(unittest.TestCase):
