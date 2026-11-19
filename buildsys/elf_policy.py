@@ -16,6 +16,4 @@ ALLOWED_NEEDED = frozenset(
 
 
 def allowed_dependency(name: str) -> bool:
-    if "/" in name or name in ("", ".", ".."):
-        return False
     return name in ALLOWED_NEEDED

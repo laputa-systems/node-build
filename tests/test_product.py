@@ -127,6 +127,46 @@ class MachOTest(unittest.TestCase):
         self.assertFalse(macho_paths.system_load_path("/usr/lib/"))
 
 
+class MachOPathTest(unittest.TestCase):
+    def test_references_resolve_against_the_image_or_actual_executables(self):
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as temp:
+            outside = Path(temp).resolve()
+            install = outside / "node"
+            image = install / "lib" / "artifact.dylib"
+            node_path = install / "bin" / "node"
+            helper = install / "helpers" / "tool"
+            for entry in (image, node_path, helper):
+                entry.parent.mkdir(parents=True)
+                entry.touch()
+            self.assertEqual(macho_paths.resolve_image_path("@loader_path", image, install), image.parent)
+            self.assertEqual(macho_paths.resolve_image_path("@loader_path/artifact.dylib", image, install), image)
+            self.assertEqual(macho_paths.resolve_image_path("@executable_path", image, install, node_path), node_path.parent)
+            self.assertIsNone(macho_paths.resolve_image_path("@executable_path", image, install))
+            self.assertIsNone(macho_paths.resolve_image_path("@executable_path/program", image, install))
+            self.assertEqual(
+                macho_paths.rpath_directories("@executable_path", image, install, [node_path, helper]),
+                [node_path.parent, helper.parent],
+            )
+            self.assertEqual(
+                macho_paths.rpath_directories("@executable_path/resources", image, install, [node_path, helper]),
+                [node_path.parent / "resources", helper.parent / "resources"],
+            )
+            self.assertEqual(macho_paths.rpath_directories("@loader_path/artifact.dylib", image, install, [node_path]), [image])
+            self.assertEqual(macho_paths.rpath_directories("@loader_path", image, install, [node_path]), [image.parent])
+            self.assertEqual(macho_paths.rpath_directories("/usr/lib", image, install, [node_path]), [])
+            self.assertEqual(macho_paths.resolve_image_path(str(node_path), image, install), node_path)
+            self.assertIsNone(macho_paths.resolve_image_path(str(outside / "README"), image, install))
+            self.assertIsNone(macho_paths.resolve_image_path("artifact.dylib", image, install))
+            self.assertFalse(macho_paths.path_inside_root(Path("bin/node"), install))
+
+    def test_system_paths_use_the_normalized_system_spelling(self):
+        self.assertTrue(macho_paths.system_load_path("/usr/lib/libSystem.B.dylib"))
+        self.assertTrue(macho_paths.system_load_path("/System/Library/Frameworks/CoreFoundation.framework"))
+        self.assertFalse(macho_paths.system_load_path("/usr/lib//libSystem.B.dylib"))
+        self.assertFalse(macho_paths.system_load_path("/opt/fixture/lib/runtime.dylib"))
+        self.assertFalse(macho_paths.system_load_path("/System/Library/"))
+
+
 class QualificationReceiptTest(unittest.TestCase):
     triple = "aarch64-apple-darwin"
 

@@ -56,5 +56,4 @@ def rpath_directories(
 def system_load_path(value: str) -> bool:
     if not value.startswith(("/usr/lib/", "/System/Library/")):
         return False
-    normalized = os.path.normpath(value)
-    return normalized == value and not normalized.endswith("/")
+    return os.path.normpath(value) == value

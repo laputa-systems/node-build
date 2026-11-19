@@ -752,6 +752,23 @@ diagnostic length. Run `buildsys.relocate.*` with
 `tests/test_product.py::RelocateTest` and the release archive recipe.
 All five focused tests and both linters passed.
 
+### Binary path policy
+
+The path tests resolve references from their loading image and from
+each executable directory. They check absolute paths inside the
+installation and normalized system spellings. The native ELF allowlist
+now uses its exact-name set directly. The Mach-O system path check
+uses normalized equality because a trailing slash cannot survive
+normalization at those prefixes.
+
+The local selection catches 82 of the current 83 Mach-O path
+identities and the single ELF policy identity. In
+`rpath_directories` 22, the executable-path branch ignores the changed
+image argument. Use the release archive recipe with
+`buildsys.macho_paths.*`, `buildsys.elf_policy.*` and the matching
+Mach-O, installed-product and ELF fixtures. All 19 focused checks
+and both linters passed.
+
 ## Tickets
 
 
