@@ -530,6 +530,48 @@ the accepted source.
 [Proof revision](https://github.com/laputa-systems/node-build/commit/61dea39cd67a41cfc6552889f6706c4b99475526)
 · [Native input and package results](https://github.com/laputa-systems/node-build/actions/runs/44431737952)
 
+The publication fixture checks receipt parsing, a missing or changed
+installed binary and the persisted package record. A failed product
+finding or a receipt edit during validation leaves the archive and
+the package record unpublished. Both native jobs caught the same
+23 additional identities among the original 309. Linux caught 249
+and macOS caught 240. The nine path-case differences held, leaving
+60 shared survivors. The Linux default tests and lint passed at
+`5060d5c12e30257bbe7e9a780a68d1a4f4d27cda`.
+[Publication cases](https://github.com/laputa-systems/node-build/pull/52)
+· [Matched package jobs](https://github.com/laputa-systems/node-build/actions/runs/44433110100/attempts/1)
+
+Both native budget jobs accounted for all 81 identities. Linux
+caught 80 and macOS caught 78. The shared survivor is
+`archive_payload_bytes` mutant 5. It omits the read mode, so
+Python 3.15.2 uses the same compression autodetection. Linux catches
+`check_budgets` 6 and 32 because the changed budget file and dist path
+casing fails on its filesystem. The budget scope is dispositioned.
+The first macOS budget attempt failed to resolve the mirror name.
+The exact retry completed.
+
+Both comparison jobs accounted for all 177 identities. Linux
+caught 135 and macOS caught 132. The differences are casing changes
+in the build and comparison directories and in the report filename
+(`compare` 11, 13 and 138). The 42 shared survivors remain open.
+[Budget and comparison results](https://github.com/laputa-systems/node-build/actions/runs/44433110100/attempts/2)
+
+A local mixed-change control at `5060d5c1` used the pinned Buildlib
+diff parser and result reader with Node's prototype selection. In
+an archived checkout, remove
+`test_git_probe_timeout_stops_assembly_and_leaves_build_provenance_unbound`
+and split `targets.native_target` into a host lookup assigned to a
+local followed by the same target conversion. Parse
+`git diff --name-status -M -z HEAD` against the untouched fixture
+commit. The test change adds `buildsys/release.py` to the changed
+`buildsys/targets.py`. All 38 remaining ordinary release tests
+passed. Using the release archive recipe above, run
+`buildsys.release.x__git_query__mutmut_*` before and after the edit.
+All 19 identities and spans matched. Five changed from caught to
+surviving (5, 11, 14, 17 and 19), and the other outcomes held.
+This exercises the release arm of the selection. DSLP-4 retains
+the full changed-production policy and hosted verification.
+
 ## Tickets
 
 
