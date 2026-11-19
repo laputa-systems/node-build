@@ -1,5 +1,3 @@
-import contextlib
-import io
 import json
 import os
 import re
@@ -18,7 +16,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import hashing, macho, release
 
-import build
 from buildsys import package, product, recipes, targets, validate_product
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
