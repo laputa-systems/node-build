@@ -1,0 +1,73 @@
+name: release mutation trial
+
+on: pull_request
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  release-mutations:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04-arm, xcode-27]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: laputa-systems/buildlib
+          ref: 1497970d9454a6a9875b1f201cbaad71fd92a010
+          path: .work/buildlib
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: 0.13.7
+      - run: uv python install 3.15.2
+      - name: Run and account for release mutations
+        run: |
+          proof="$PWD/.work/tmp/release-proof"
+          mkdir -p "$proof/.work/tmp"
+          export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+          git archive HEAD | tar -x -C "$proof"
+          cat >> "$proof/pyproject.toml" <<'TOML'
+
+          [tool.mutmut]
+          source_paths = ["buildsys"]
+          only_mutate = ["buildsys/release.py"]
+          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", ".github"]
+          pytest_add_cli_args_test_selection = ["tests/test_release.py"]
+          use_setproctitle = false
+          TOML
+          uv run --frozen --python 3.15.2 --with mutmut==3.8.1 --with pytest==9.2.0 bash -euc '
+            cd "$1"
+            python -m mutmut run --max-children 1 "buildsys.release.*"
+          ' node-release-proof "$proof"
+          for part in meta spans; do
+            printf '%s ' "$part"
+            gzip -c "$proof/mutants/buildsys/release.py.$part" | base64 | tr -d '\n'
+            printf '\n'
+          done
+          uv run --frozen --python 3.15.2 python - "$proof" "$PWD/.work/buildlib/scripts" <<'PY'
+          import sys
+          from collections import Counter
+          from pathlib import Path
+
+          sys.path.insert(0, sys.argv[2])
+          from mutants_gate import read_results
+
+          files = Path(sys.argv[1]) / "mutants" / "buildsys"
+          results = read_results(files / "release.py.meta", files / "release.py.spans", "buildsys.release.")
+          print("Outcome totals:", dict(sorted(Counter(results.values()).items())))
+          for name, outcome in sorted(results.items()):
+              if outcome != "killed":
+                  print(outcome, name)
+          PY
