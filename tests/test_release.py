@@ -15,7 +15,7 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from buildlib import hashing, release
+from buildlib import hashing, macho, release
 
 import build
 from buildsys import package, product, recipes, targets, validate_product
@@ -186,13 +186,19 @@ class PackageStageTest(unittest.TestCase):
                 (stage / "bin" / "node").write_bytes(image)
                 (stage / "LICENSE").write_text("fixture license", encoding="utf-8")
                 destination = self.root / f"{machine}.json"
-                report = package.write_hardening_report(stage, machine, target, destination)
+                with patch.object(macho, "signature_status", return_value=(False, "fixture unsigned")) as signature:
+                    report = package.write_hardening_report(stage, machine, target, destination)
                 self.assertEqual(json.loads(destination.read_text(encoding="utf-8")), report)
                 self.assertEqual(set(report["images"]), {"bin/node"})
                 self.assertEqual(report["images"]["bin/node"]["arch"], machine)
                 self.assertEqual(report["deployment_target"], target)
                 checks = {check["name"]: check["ok"] for check in report["checks"]}
                 self.assertIs(checks[finding], expected)
+                if machine == "arm64":
+                    signature.assert_called_once_with(stage.resolve() / "bin" / "node")
+                    self.assertIs(checks["macho-signatures"], False)
+                else:
+                    signature.assert_not_called()
 
 
 class PackageRecordTest(unittest.TestCase):

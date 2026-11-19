@@ -477,8 +477,10 @@ three cases now passes.
 The hardening report fixture uses the existing synthetic ELF and
 Mach-O files and exercises both report writers. It verifies relative
 image paths, the declared target and a recorded hardening result
-against the persisted document. All 36 release cases and both
-linters passed.
+against the persisted document. It supplies the unsigned result
+at the native signature-check boundary so the same fixture works on
+Linux and macOS. The prior native artifact checks cover `codesign`.
+All 36 release cases and both linters passed.
 
 The first hosted package census found 113 no-test outcomes in the
 two functions. The new local full-module census used Python 3.15.2,
