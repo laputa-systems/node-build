@@ -1,14 +1,26 @@
+import hashlib
+import json
 import struct
 import sys
+import tarfile
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import macho
 
-from buildsys import macho_paths, relocate, validate_product
+from buildsys import (
+    macho_paths,
+    product,
+    qualify_runner,
+    relocate,
+    smoke,
+    validate_product,
+)
 from buildsys import package as packager
 
 
@@ -109,6 +121,96 @@ class MachOTest(unittest.TestCase):
         self.assertTrue(macho_paths.system_load_path("/System/Library/Frameworks/CoreFoundation.framework"))
         self.assertFalse(macho_paths.system_load_path("/opt/local/lib/libx.dylib"))
         self.assertFalse(macho_paths.system_load_path("/usr/lib/"))
+
+
+class QualificationReceiptTest(unittest.TestCase):
+    triple = "aarch64-apple-darwin"
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp")
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.archive = (
+            self.root / "dist" / self.triple
+            / product.archive_name(product.NODE_VERSION, self.triple)
+        )
+        self.archive.parent.mkdir(parents=True)
+        self.work = self.root / "build" / self.triple / "qualify"
+        self.receipt = self.work / "qualify-record.json"
+
+    def write_archive(self, *, with_binary: bool):
+        source = self.root / "fixture"
+        source.mkdir()
+        if with_binary:
+            binary = source / "bin" / "node"
+            binary.parent.mkdir()
+            binary.write_bytes(b"node fixture")
+        with tarfile.open(self.archive, "w:xz") as bundle:
+            bundle.add(source, arcname="node")
+
+    def test_missing_archive_and_missing_binary_leave_no_receipt(self):
+        with self.assertRaisesRegex(qualify_runner.QualifyError, "no packaged archive"):
+            qualify_runner.qualify(self.root, self.triple)
+        self.assertFalse(self.work.exists())
+        self.write_archive(with_binary=False)
+        with self.assertRaisesRegex(qualify_runner.QualifyError, "archive has no bin/node"):
+            qualify_runner.qualify(self.root, self.triple)
+        self.assertFalse(self.receipt.exists())
+
+    def test_qualification_persists_check_results_and_clears_the_previous_extraction(self):
+        self.write_archive(with_binary=True)
+        self.work.mkdir(parents=True)
+        old_file = self.work / "old"
+        old_file.write_text("previous run", encoding="utf-8")
+        extracted = self.work / "extracted" / "node"
+        content = validate_product.ProductFinding("native image", True, "arm64")
+        compiler = smoke.SmokeFinding("compile addon", True, "compiled")
+        network = smoke.SmokeFinding("loopback", False, "failed")
+        moved = relocate.RelocationFinding("run after move", True, "executed")
+        with (
+            patch.object(validate_product, "validate_install_tree", return_value=[content]) as validate,
+            patch.object(smoke, "run_suite", return_value=[compiler, network]) as run_smoke,
+            patch.object(relocate, "verify_relocation", return_value=[moved]) as move,
+        ):
+            with self.assertRaisesRegex(qualify_runner.QualifyError, "qualification failed: loopback"):
+                qualify_runner.qualify(self.root, self.triple)
+            self.assertFalse(old_file.exists())
+            self.assertEqual((extracted / "bin" / "node").read_bytes(), b"node fixture")
+            self.assertTrue((self.work / "smoke-work").is_dir())
+            stage = str(self.root / "build" / self.triple / "stage").encode()
+            source = str(self.root / "build" / "src" / f"node-v{product.NODE_VERSION}").encode()
+            validate.assert_called_once_with(extracted, "arm64", "26.0", [stage], [source])
+            run_smoke.assert_called_once_with(
+                extracted / "bin" / "node", extracted, extracted / "include" / "node",
+                self.work / "smoke-work", self.root / "tests" / "fixtures", self.triple,
+            )
+            move.assert_called_once_with(
+                extracted, self.work / "reloc-a", self.work / "reloc b with spaces", [stage], [source],
+            )
+            failed = json.loads(self.receipt.read_text(encoding="utf-8"))
+            self.assertEqual(failed, {
+                "archive": str(self.archive),
+                "sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
+                "product_checks": [{"name": "native image", "ok": True, "detail": "arm64"}],
+                "smoke": [
+                    {"name": "compile addon", "ok": True, "detail": "compiled"},
+                    {"name": "loopback", "ok": False, "detail": "failed"},
+                ],
+                "relocation": [{"name": "run after move", "ok": True, "detail": "executed"}],
+                "smoke_passed": 1,
+                "smoke_total": 2,
+            })
+            validate.return_value = [validate_product.ProductFinding("native image", False, "wrong platform")]
+            move.return_value = [relocate.RelocationFinding("run after move", False, "missing binary")]
+            with self.assertRaisesRegex(qualify_runner.QualifyError, r"qualification failed: native image, loopback, run after move$"):
+                qualify_runner.qualify(self.root, self.triple)
+            validate.return_value = [content]
+            run_smoke.return_value = [compiler]
+            move.return_value = [moved]
+            result = qualify_runner.qualify(self.root, self.triple)
+            self.assertEqual(result, json.loads(self.receipt.read_text(encoding="utf-8")))
+            self.assertEqual(result["smoke_total"], 1)
+            self.assertEqual(result["smoke_passed"], 1)
 
 
 class RelocateTest(unittest.TestCase):
