@@ -579,6 +579,99 @@ class BootstrapTest(unittest.TestCase):
                         self.assertEqual(stdout.getvalue(), "")
                         self.assertEqual(stderr.getvalue(), f"error: {message}\n")
 
+    def test_toolchain_probes_parse_native_command_output(self):
+        toolchain = {
+            ("xcodebuild", "-version"): (0, "Xcode 27.1\nBuild version fixture\n", ""),
+            ("xcrun", "--show-sdk-version"): (0, "27.0\n", ""),
+            ("xcrun", "--show-sdk-path"): (0, "/sdk/MacOSX.sdk\n", ""),
+            ("clang", "--version"): (0, "Apple clang version 21.0.0 (fixture)\n", ""),
+            ("gcc", "-dumpversion"): (0, "15.2.0 extra\n", ""),
+            ("ldd", "--version"): (1, "", "musl libc (x86_64)\nVersion 1.2.6\n"),
+        }
+        def probe(argv, **options):
+            self.assertEqual(options, {"capture_output": True, "text": True, "timeout": 60, "check": False})
+            return subprocess.CompletedProcess(argv, *toolchain[tuple(argv)])
+
+        python = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        with (
+            patch.object(bootstrap.subprocess, "run", side_effect=probe),
+            patch.object(bootstrap.platform, "machine", return_value="arm64") as machine,
+            patch.object(bootstrap.platform, "system", return_value="Darwin") as system,
+            patch.object(bootstrap.platform, "release", return_value="6.18-fixture"),
+        ):
+            self.assertEqual(
+                bootstrap.current_identity(),
+                bootstrap.ToolchainIdentity("27.1", "27.0", "/sdk/MacOSX.sdk", "21.0.0", "arm64", "Darwin", python),
+            )
+            toolchain[("clang", "--version")] = (0, "", "clang version 22.1.3 (fixture)\n")
+            machine.return_value = "x86_64"
+            system.return_value = "Linux"
+            self.assertEqual(
+                bootstrap.linux_current_identity(),
+                bootstrap.LinuxToolchainIdentity("15.2.0", "22.1.3", "1.2.6", "6.18-fixture", "x86_64", "Linux", python),
+            )
+            toolchain[("xcodebuild", "-version")] = (2, "Xcode 27.1\n", " unavailable \n")
+            with self.assertRaisesRegex(RuntimeError, r"^xcodebuild -version failed: unavailable$"):
+                bootstrap.xcode_version()
+            toolchain[("ldd", "--version")] = (1, "", "missing version")
+            with self.assertRaisesRegex(RuntimeError, r"^could not parse musl ldd output: 'missing version'$"):
+                bootstrap.musl_version()
+            for command, parse, label in (
+                (("xcodebuild", "-version"), bootstrap.xcode_version, "xcodebuild"),
+                (("clang", "--version"), bootstrap.clang_version, "clang"),
+                (("clang", "--version"), bootstrap.linux_clang_version, "clang"),
+            ):
+                with self.subTest(parser=parse.__name__):
+                    toolchain[command] = (0, "", "probe result unavailable")
+                    with self.assertRaisesRegex(RuntimeError, f"^could not parse {label} output: 'probe result unavailable'$"):
+                        parse()
+            toolchain[("ldd", "--version")] = (1, "musl libc\nVersion 1.2.6", "")
+            self.assertEqual(bootstrap.musl_version(), "1.2.6")
+
+    def test_checks_report_both_matching_and_changed_toolchain_fields(self):
+        lock = json.loads((REPO_ROOT / "bootstrap.lock.json").read_text(encoding="utf-8"))
+        apple, linux = lock["toolchain"], lock["linux_toolchain"]
+        matches_macos = bootstrap.ToolchainIdentity(
+            apple["xcode"], apple["sdk"], "/sdk", apple["clang"], apple["host_machine"], "Darwin", "3.15.2",
+        )
+        changed_macos = bootstrap.ToolchainIdentity("0", "0", "/sdk", "0", "unknown", "Unknown", "3.15.2")
+        matches_linux = bootstrap.LinuxToolchainIdentity(
+            linux["gcc"], linux["clang"], linux["musl"], "6.1", linux["host_machine"], "Linux", "3.15.2",
+        )
+        changed_linux = bootstrap.LinuxToolchainIdentity("0", "0", "0", "6.1", "unknown", "Unknown", "3.15.2")
+        checks = (
+            ("macos", bootstrap.check_locked_toolchain(lock, matches_macos),
+             bootstrap.check_locked_toolchain(lock, changed_macos),
+             [("xcode", apple["xcode"]), ("sdk", apple["sdk"]), ("clang", apple["clang"]), ("machine", apple["host_machine"])]),
+            ("linux", bootstrap.check_linux_toolchain(lock, matches_linux),
+             bootstrap.check_linux_toolchain(lock, changed_linux),
+             [("gcc", linux["gcc"]), ("clang", linux["clang"]), ("musl", linux["musl"]), ("machine", linux["host_machine"])]),
+        )
+        for host, matching, changed, expected in checks:
+            with self.subTest(host=host):
+                self.assertEqual(
+                    [(finding.name, finding.ok) for finding in matching],
+                    [(name, True) for name, _ in expected] + [("system", True)],
+                )
+                self.assertEqual(
+                    changed,
+                    [bootstrap.DoctorFinding(name, False, f"host {'unknown' if name == 'machine' else '0'} vs locked {pinned}")
+                     for name, pinned in expected] + [bootstrap.DoctorFinding("system", False, "host Unknown")],
+                )
+
+        for check, key in ((bootstrap.check_locked_baseline, "cpu_baseline"), (bootstrap.check_linux_baseline, "linux_baseline")):
+            with self.subTest(baseline=key):
+                self.assertEqual(
+                    check(lock),
+                    [bootstrap.DoctorFinding(name, True, f"locked {lock[key][field]}")
+                     for name, field in (("cpu-baseline", "cflag"), ("deployment-target", "deployment_target"))],
+                )
+                changed = lock | {key: {"cflag": "-march=native", "deployment_target": "0"}}
+                self.assertEqual(check(changed), [
+                    bootstrap.DoctorFinding("cpu-baseline", False, "locked -march=native"),
+                    bootstrap.DoctorFinding("deployment-target", False, "locked 0"),
+                ])
+
     def test_lock_matches_host(self):
         import platform
         import subprocess

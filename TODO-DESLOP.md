@@ -703,6 +703,22 @@ the release archive recipe with `buildsys.reproduce.*`,
 `tests/test_product.py::ReproduceReceiptTest` and
 `tests/test_release.py::ReproduceDiffTest`.
 
+### Native toolchain probes
+
+Fixture output now exercises the macOS and Linux command probes and
+checks all reported toolchain and baseline fields. The tests cover
+a failing command with plausible stdout, unparseable output, and musl
+version output on either stream. They also check each diagnostic when
+the host identity differs from the lock.
+
+The earlier bootstrap selection caught 52 of 423 identities and marked
+371 as unexercised. On the same source and spans, the fixture selection
+caught all 423 locally. Use the release archive recipe with
+`buildsys.bootstrap.*` and `tests/test_controller.py::BootstrapTest`,
+excluding `test_lock_matches_host` from the mutation subprocess. The
+ordinary controller still checks the real host where the locked native
+toolchain is present. Both new checks and both linters passed.
+
 ## Tickets
 
 
