@@ -29,7 +29,6 @@ def qualify(repo_root: Path, triple: str) -> dict:
     if work.exists():
         shutil.rmtree(work)
     extracted = work / "extracted" / "node"
-    extracted.parent.mkdir(parents=True, exist_ok=True)
     inputs.safe_extract(archive, extracted.parent)
     if not (extracted / "bin" / "node").is_file():
         raise QualifyError(f"archive has no bin/node: {archive}")
