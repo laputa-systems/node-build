@@ -984,6 +984,22 @@ certificate and rejects the untrusted one. The portable cases check the
 argument boundaries and refusal after a nonzero exit. All 20 smoke
 cases and both linters passed.
 
+#### Complete success lines in installed probes
+
+Ten probes previously accepted a marker inside a longer line. The
+fixtures reproduced acceptance of lines such as `did not report http
+ok`. The probes now require a complete success line and a zero exit.
+The fixtures cover output, child command and error detail. Startup has
+a separate deterministic clock and status case. All 22 smoke cases and
+both linters passed. All twelve selected native probes passed with
+Node 26.12.1 and its shipped headers on macOS ARM64.
+
+The full portable `buildsys/smoke.py` inventory using mutmut 3.8.1 and
+pytest 9.2.0 at base `468d0761` reported 536 caught, 133 surviving, and
+330 unexercised identities out of 999. With the new tests and marker
+checks, all 999 ran. It caught 683 with 316 surviving and no timeouts.
+The broader native script effects and survivor dispositions remain open.
+
 ## Tickets
 
 

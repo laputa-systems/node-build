@@ -89,6 +89,48 @@ class FileSystemSmokeTest(unittest.TestCase):
                 smoke.check_fs_async(program, work, work)
 
 
+class InlineSmokeProbeTest(unittest.TestCase):
+    def test_requires_a_success_line_and_zero_exit(self):
+        work = Path("/probe/work")
+        fixtures = Path("/probe/fixtures")
+        node = work / "installed node"
+        cases = (
+            (smoke.check_modules, "cjs+esm ok", "cjs+esm ok", "module", fixtures / "smoke"),
+            (smoke.check_dns_tcp, "dns+tcp ok", "dns+tcp ok", r"dns\+tcp", work),
+            (smoke.check_http, "http ok", "http ok", "http", work),
+            (smoke.check_https, "https ok", "trusted accepted, untrusted rejected", "https", work),
+            (smoke.check_crypto, "crypto ok", "webcrypto vector + aes-gcm roundtrip", "crypto", work),
+            (smoke.check_compression, "compression ok", "zlib + brotli roundtrips", "compression", work),
+            (smoke.check_fetch_streams, "fetch ok", "fetch ok", "fetch", work),
+            (smoke.check_intl, "intl ok", "en-US currency + weekday", "intl", work),
+        )
+        for check, marker, detail, error_label, cwd in cases:
+            with self.subTest(probe=check.__name__), patch.object(smoke, "run_node") as invoke:
+                invoke.return_value = subprocess.CompletedProcess([], 0, f"probe log\n{marker}\n", "")
+                self.assertEqual(check(node, work, fixtures), detail)
+                program, args, directory = invoke.call_args.args
+                self.assertEqual((program, args[0], directory), (node, "-e", cwd))
+                if check is not smoke.check_https:
+                    self.assertEqual(len(args), 2)
+                for status, stdout in ((0, f"did not report {marker}\n"), (8, f"{marker}\n")):
+                    invoke.return_value = subprocess.CompletedProcess([], status, stdout, "probe error")
+                    with self.assertRaisesRegex(smoke.SmokeError, rf"^{error_label} check failed.*: probe error$"):
+                        check(node, work, fixtures)
+
+    def test_startup_requires_zero_exit_and_reports_the_measured_interval(self):
+        work = Path("/probe/work")
+        node = work / "installed node"
+        with (
+            patch.object(smoke.time, "monotonic", side_effect=(1.0, 1.012, 2.0, 2.004)),
+            patch.object(smoke, "run_node", return_value=subprocess.CompletedProcess([], 0, "", "")) as invoke,
+        ):
+            self.assertEqual(smoke.check_startup(node, work, work), "cold start 12 ms")
+            invoke.assert_called_once_with(node, ["-e", "1"], work)
+            invoke.return_value = subprocess.CompletedProcess([], 7, "", "fixture error")
+            with self.assertRaisesRegex(smoke.SmokeError, "^startup probe failed: fixture error$"):
+                smoke.check_startup(node, work, work)
+
+
 class HttpsSmokeTest(unittest.TestCase):
     def test_passes_fixture_paths_as_separate_node_arguments(self):
         work = Path("/probe/work")
@@ -162,7 +204,8 @@ class WorkerSmokeTest(unittest.TestCase):
             "  *\"execFile(process.execPath, ['-p', '6*7']\"*);;\n"
             '  *) printf "worker did not use the running node executable\\n" >&2; exit 8;;\n'
             "esac\n"
-            'if test ! -e silent; then printf "workers ok\\n"; fi\n'
+            'if test -e decorated; then printf "did not report workers ok\\n"; '
+            'elif test ! -e silent; then printf "workers ok\\n"; fi\n'
             'if test -e failed; then printf "fixture stderr\\n" >&2; exit 9; fi\n',
             encoding="utf-8",
         )
@@ -174,6 +217,10 @@ class WorkerSmokeTest(unittest.TestCase):
             smoke.check_workers_child(node, work, work)
 
         (work / "silent").unlink()
+        (work / "decorated").touch()
+        with self.assertRaisesRegex(smoke.SmokeError, "^workers check failed: $"):
+            smoke.check_workers_child(node, work, work)
+        (work / "decorated").unlink()
         (work / "failed").touch()
         with self.assertRaisesRegex(smoke.SmokeError, "^workers check failed: fixture stderr$"):
             smoke.check_workers_child(node, work, work)
@@ -342,7 +389,8 @@ class CommandSmokeContract(unittest.TestCase):
             '  -h|--help) cat "help.$1";;\n'
             "  -p) test \"$2\" = 'JSON.stringify({answer:42})'; cat evaluate;;\n"
             '  --completion-bash) cat completion;;\n'
-            '  -e) test -f addon.node; test "$2" = "$(cat addon-script)"; printf "addon ok\\n";;\n'
+            '  -e) test -f addon.node; test "$2" = "$(cat addon-script)"; '
+            'if test -f addon-report; then cat addon-report; else printf "addon ok\\n"; fi;;\n'
             '  *) exit 8;;\n'
             'esac\n'
             'if [ -f "stderr.$1" ]; then cat "stderr.$1" >&2; fi\n'
@@ -457,6 +505,11 @@ class CommandSmokeContract(unittest.TestCase):
                     self.assertEqual(arguments.read_text().splitlines(), [
                         *flags, f"-I{headers}", str(self.work / "smoke/addon.cc"), "-o", str(package),
                     ])
+                    report = self.work / "addon-report"
+                    report.write_text("did not report addon ok\n", encoding="utf-8")
+                    with self.assertRaisesRegex(smoke.SmokeError, "^addon load failed: $"):
+                        smoke.check_napi_addon(self.node, self.work, self.work, headers, triple)
+                    report.unlink()
                     status = self.work / "status.-e"
                     status.write_text("8", encoding="utf-8")
                     error = self.work / "stderr.-e"
