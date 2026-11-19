@@ -151,6 +151,31 @@ class ProductTest(unittest.TestCase):
 
 
 class InputsTest(unittest.TestCase):
+    def test_render_json_creates_parents_and_rewrites_a_stable_record(self):
+        tmp_root = REPO_ROOT / ".work" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_root) as scratch:
+            record = Path(scratch) / "metadata" / "stage" / "package.json"
+            inputs.render_json({"z": "café", "a": True}, record)
+            self.assertEqual(record.read_bytes(), b'{\n  "a": true,\n  "z": "caf\\u00e9"\n}\n')
+            inputs.render_json({"a": None}, record)
+            self.assertEqual(record.read_bytes(), b'{\n  "a": null\n}\n')
+
+    def test_extract_creates_nested_destination_for_a_regular_archive(self):
+        tmp_root = REPO_ROOT / ".work" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_root) as scratch:
+            root = Path(scratch)
+            source = root / "source"
+            source.mkdir()
+            (source / "note.txt").write_bytes(b"fixture source")
+            archive = root / "source.tar.xz"
+            with tarfile.open(archive, "w:xz") as bundle:
+                bundle.add(source, arcname="source")
+            destination = root / "cache" / "unpacked"
+            inputs.safe_extract(archive, destination)
+            self.assertEqual((destination / "source" / "note.txt").read_bytes(), b"fixture source")
+
     def test_lock_schema_loads(self):
         entry = locks.load_sources(REPO_ROOT / "sources.lock.json").get("node")
         self.assertEqual(entry.version, "26.12.1")

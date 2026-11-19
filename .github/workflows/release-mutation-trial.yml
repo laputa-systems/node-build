@@ -1,4 +1,4 @@
-name: input mutation trial
+name: package and input mutation trial
 
 on: pull_request
 
@@ -10,14 +10,15 @@ defaults:
 
 jobs:
   controller-mutations:
-    runs-on: ubuntu-26.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        module: [inputs]
+        module: [package, inputs]
+        runner: [ubuntu-26.04-arm, xcode-27]
     env:
       PROOF_MODULE: ${{ matrix.module }}
     steps:

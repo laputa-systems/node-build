@@ -451,6 +451,65 @@ same final newline after a hexadecimal revision. Two variants add
 sentinel text to existing errors while preserving the error category
 and message content. These account for all nine macOS survivors.
 
+The full release module at `46c82f2658aa2fa5ed5cd6cc433108ae86a5bf96`
+accounted for all 390 identities on both native ARM64 hosts. Ubuntu
+caught 382 and macOS caught 373. The identity sets and generated spans
+matched exactly. Linux caught the nine case variants documented above.
+The eight shared survivors comprise five equivalent operations, two
+diagnostic-only changes and the omitted UTF-8 encoding caught in the
+C locale run. The release module's critical outcomes are dispositioned.
+
+Reproduce with the [exact hosted workflow](https://github.com/laputa-systems/node-build/blob/7f389ca/.github/workflows/release-mutation-trial.yml)
+at the recorded source. It uses Python 3.15.2, mutmut 3.8.1, pytest 9.2.0,
+`tests/test_release.py` and one mutation worker. The pinned Buildlib
+reader validates the full metadata and span sets. The job logs retain
+both compressed sidecars and the named survivors.
+[Native census](https://github.com/laputa-systems/node-build/actions/runs/44428020350)
+
+The package installer now closes its output pipe before returning.
+A real fixture child reproduced an open pipe after a successful
+installation, a nonzero exit and a clean exit without an install
+tree. The test checks the actual child exit, both output streams,
+the staged bytes and preservation of a sibling stage file. The
+process context owns pipe closure and reaps the child. Each of the
+three cases now passes.
+
+The hardening report fixture uses the existing synthetic ELF and
+Mach-O files and exercises both report writers. It verifies relative
+image paths, the declared target and a recorded hardening result
+against the persisted document. It supplies the unsigned result
+at the native signature-check boundary so the same fixture works on
+Linux and macOS. The prior native artifact checks cover `codesign`.
+All 36 release cases and both linters passed.
+
+The first hosted package census found 113 no-test outcomes in the
+two functions. The new local full-module census used Python 3.15.2,
+mutmut 3.8.1 and pytest 9.2.0. It caught 217 of 309 identities
+with all identities exercised. The installer implementation and
+host differ between the runs. Reproduce with the preceding archive
+recipe, changing the source to `buildsys/package.py`, selecting
+`tests/test_release.py` and `tests/test_product.py`, and running
+`buildsys.package.*`. DSLP-4 retains the 92 package survivors.
+
+The native Linux input census selected `InputsTest`,
+`ExtractedSourceTest`, `BuildReceiptTest`, and `PackageRecordTest`.
+It accounted for all 49 identities with 29 catches. The runner
+copies the scratch path and locked fixture files into each audit
+workspace. Buildlib's reader rejected the earlier run's 23 no-test
+results before the receipt-writing tests were included.
+[Native input census](https://github.com/laputa-systems/node-build/actions/runs/44429877423)
+
+The new output cases check a complete JSON receipt, a shorter rewrite
+and extraction of an ordinary compressed directory into a missing
+directory chain. The matched JSON selection moved from 11 to 20
+catches of 23. The remaining encodings write the same ASCII JSON bytes
+on the supported hosts. The nested extraction case also catches
+all three changes that disable creation of destination parents.
+Run the two new `InputsTest` methods directly. For mutmut use the
+preceding archive recipe with `buildsys/inputs.py`, selecting the
+receipt-writing tests and the two new methods. DSLP-4 retains the
+other extraction dispositions and the whole-change lane.
+
 ## Tickets
 
 
@@ -459,7 +518,7 @@ and message content. These account for all nine macOS survivors.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and several boundary selections are measured. Survivor dispositions and the whole-change mutation gate remain open.
+- **Problem:** Coverage and several boundary selections are measured. The complete release scope is dispositioned on both hosts. Package, input and other controller scopes still need their critical dispositions and the retained whole-change lane.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
