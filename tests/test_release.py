@@ -125,12 +125,14 @@ class PackageStageTest(unittest.TestCase):
         source = self.root / "source"
         (source / "tools").mkdir(parents=True)
         (source / "tools" / "install.py").write_text(
+            "import os\n"
             "import sys\n"
             "from pathlib import Path\n"
             "command, dest_option, dest, prefix_option, prefix = sys.argv[1:]\n"
             "assert (command, dest_option, prefix_option, prefix) == "
             "('install', '--dest-dir', '--prefix', '/node')\n"
             "mode = Path('install-mode').read_text()\n"
+            "assert os.environ['MACOSX_DEPLOYMENT_TARGET'] == '26.0'\n"
             "print('installer stdout: ' + mode)\n"
             "print('installer stderr: ' + mode, file=sys.stderr)\n"
             "if mode != 'missing':\n"
@@ -158,7 +160,11 @@ class PackageStageTest(unittest.TestCase):
             return child
 
         for mode, message in (("complete", None), ("failure", "install failed"), ("missing", "install produced no tree")):
-            with self.subTest(mode=mode), patch.object(package.subprocess, "Popen", side_effect=start_child):
+            with (
+                self.subTest(mode=mode),
+                patch.dict(os.environ, {"MACOSX_DEPLOYMENT_TARGET": "25.0"}),
+                patch.object(package.subprocess, "Popen", side_effect=start_child),
+            ):
                 (source / "install-mode").write_text(mode, encoding="utf-8")
                 if message is None:
                     self.assertEqual(package.install_to_stage(source, stage, recipe), installed)
@@ -174,6 +180,39 @@ class PackageStageTest(unittest.TestCase):
                 self.assertEqual(child.returncode, 7 if mode == "failure" else 0)
                 assert child.stdout is not None
                 self.assertTrue(child.stdout.closed)
+
+    def test_installer_creates_nested_stage_and_captures_utf8_under_c_locale(self):
+        source = self.root / "source"
+        (source / "tools").mkdir(parents=True)
+        (source / "tools" / "install.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "stage = Path(sys.argv[3]) / 'node'\n"
+            "stage.mkdir()\n"
+            "print('installed caf\\u00e9')\n",
+            encoding="utf-8",
+        )
+        stage = self.root / "new" / "nested" / "stage"
+        install = (
+            "import locale\n"
+            "import sys\n"
+            "from pathlib import Path\n"
+            "from buildsys import package, recipes\n"
+            "assert locale.getencoding().lower() not in {'utf-8', 'utf8'}\n"
+            f"recipe = recipes.recipe_for_triple({TRIPLE!r})\n"
+            "package.install_to_stage(Path(sys.argv[1]), Path(sys.argv[2]), recipe)\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", install, str(source), str(stage)],
+            cwd=REPO_ROOT,
+            env=dict(os.environ, LC_ALL="C", PYTHONCOERCECLOCALE="0", PYTHONUTF8="0", PYTHONIOENCODING="ascii"),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((stage / "node").is_dir())
+        self.assertEqual((stage / "install.log").read_bytes(), "installed café\n".encode())
 
     def test_hardening_report_persists_native_image_findings(self):
         cases = (
@@ -193,13 +232,18 @@ class PackageStageTest(unittest.TestCase):
                 self.assertEqual(set(report["images"]), {"bin/node"})
                 self.assertEqual(report["images"]["bin/node"]["arch"], machine)
                 self.assertEqual(report["deployment_target"], target)
-                checks = {check["name"]: check["ok"] for check in report["checks"]}
-                self.assertIs(checks[finding], expected)
+                checks = {check["name"]: check for check in report["checks"]}
+                self.assertEqual(checks[finding], {
+                    "name": finding, "ok": expected, "detail": "ok" if expected else "bin/node",
+                })
                 if machine == "arm64":
                     signature.assert_called_once_with(stage.resolve() / "bin" / "node")
-                    self.assertIs(checks["macho-signatures"], False)
+                    self.assertIs(checks["macho-signatures"]["ok"], False)
+                    self.assertIs(checks["macho-arch"]["ok"], True)
+                    self.assertIs(checks["macho-minos"]["ok"], True)
                 else:
                     signature.assert_not_called()
+                    self.assertIs(checks["elf-arch"]["ok"], True)
 
 
 class PackageRecordTest(unittest.TestCase):
