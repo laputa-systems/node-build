@@ -147,6 +147,25 @@ Darwin = [
   "buildsys.release.x_validate_triple__mutmut_80=a18ce57d71f8d9b9bcde7ebbdce7f9be4b2006f70037b4860ac621ea35300583",
 ]
 
+[qualified.relocate]
+source_sha256 = "91b40a8712f0be9f0b5a19733fa338d1ff09904aaed3d98c09bde6ac2e7a83bd"
+Linux = [
+  "buildsys.relocate.x_copy_tree__mutmut_4=994e12c778a6da15736be0c9ed4ce5afd8fb99ccaf12139062a3b13ecdf1a2ba",
+  "buildsys.relocate.x_copy_tree__mutmut_7=892e8a4869b5880ae0e86233319010284b80385bb2fa10dd16f634c4709a104e",
+  "buildsys.relocate.x_run_version__mutmut_12=c0ed08e1724d3e22e2c2d24d0def62e193dd9a482485b67d525df9faceda9ea4",
+  "buildsys.relocate.x_run_version__mutmut_7=1f75597414cafd0a8087a3c1ed9ce58a736bccf574210c34dee5b0b07bd67c95",
+  "buildsys.relocate.x_verify_relocation__mutmut_80=6bb6a04a75686da569a79f4a3f8852cf6a6d97199f3601fad17d8edd18df8a1b",
+]
+Darwin = [
+  "buildsys.relocate.x_copy_tree__mutmut_4=994e12c778a6da15736be0c9ed4ce5afd8fb99ccaf12139062a3b13ecdf1a2ba",
+  "buildsys.relocate.x_copy_tree__mutmut_7=892e8a4869b5880ae0e86233319010284b80385bb2fa10dd16f634c4709a104e",
+  "buildsys.relocate.x_run_version__mutmut_12=c0ed08e1724d3e22e2c2d24d0def62e193dd9a482485b67d525df9faceda9ea4",
+  "buildsys.relocate.x_run_version__mutmut_7=1f75597414cafd0a8087a3c1ed9ce58a736bccf574210c34dee5b0b07bd67c95",
+  "buildsys.relocate.x_verify_relocation__mutmut_6=f75662a9e54c5afc90f4184890d11a1daa3b0f1fab634d22a9a23819f934f0de",
+  "buildsys.relocate.x_verify_relocation__mutmut_8=fe7510e6ffca7eed8212ae39e1e92b495b3a7128225310c1f9d1e23728e443f6",
+  "buildsys.relocate.x_verify_relocation__mutmut_80=6bb6a04a75686da569a79f4a3f8852cf6a6d97199f3601fad17d8edd18df8a1b",
+]
+
 [qualified.reproduce]
 source_sha256 = "d3ad4e6d70515bab88388d05d2a781539af67253d4782614b954b300efbb10e7"
 Linux = []

@@ -83,6 +83,7 @@ jobs:
             qualify_runner) tests='["tests/test_product.py::QualificationReceiptTest"]' ;;
             recipes) tests='["tests/test_controller.py::RecipesTest"]' ;;
             release) tests='["tests/test_release.py"]' ;;
+            relocate) tests='["tests/test_product.py::RelocateTest"]' ;;
             reproduce) tests='["tests/test_product.py::ReproduceReceiptTest", "tests/test_release.py::ReproduceDiffTest"]' ;;
             targets) tests='["tests/test_controller.py::TargetTest", "tests/test_controller.py::RecipesTest", "tests/test_release.py"]' ;;
             *) exit 2 ;;
