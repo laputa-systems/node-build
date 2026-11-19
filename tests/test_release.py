@@ -192,6 +192,12 @@ class PackageStageTest(unittest.TestCase):
             "print('installed caf\\u00e9')\n",
             encoding="utf-8",
         )
+        direct_stage = self.root / "direct" / "nested" / "stage"
+        recipe = recipes.recipe_for_triple(TRIPLE)
+        with patch.dict(os.environ, {"PYTHONIOENCODING": "ascii"}):
+            self.assertEqual(package.install_to_stage(source, direct_stage, recipe), direct_stage / "node")
+        self.assertEqual((direct_stage / "install.log").read_bytes(), "installed café\n".encode())
+
         stage = self.root / "new" / "nested" / "stage"
         install = (
             "import locale\n"

@@ -611,6 +611,26 @@ diagnostic. The target scope is fully dispositioned.
 [Target admission cases](https://github.com/laputa-systems/node-build/pull/53)
 · [Native target results](https://github.com/laputa-systems/node-build/actions/runs/44434306494)
 
+The paired comparison census at `33dce866` accounts for the same
+177 identities and spans as the first trial. Linux caught 168 and
+macOS caught 167. The work-directory fixture exercises both real
+version probes and a second report write to the same path.
+
+- `binary_version` 7 and 13 leave `subprocess.run` checking disabled.
+- `compare` 34, 43, 44, 62, 71 and 72 change the candidate label.
+  The worker sends the reference label to the reference executable
+  and all other labels to the candidate. The recorded values and
+  verdict ignore the sample labels.
+- `compare` 129 changes the note's surrounding diagnostic text.
+- `compare` 138 uppercases the report filename. The case-sensitive
+  Linux fixture catches the change.
+
+These dispositions complete the comparison scope. Reproduce with
+the selected `tests/test_compare.py` archive recipe at the exact
+proof revision. Its native jobs recorded both maps and all spans.
+[Repeat-run cases](https://github.com/laputa-systems/node-build/pull/59)
+· [Native comparison results](https://github.com/laputa-systems/node-build/actions/runs/44437652960)
+
 ## Tickets
 
 
@@ -619,7 +639,7 @@ diagnostic. The target scope is fully dispositioned.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and several boundary selections are measured. Release, inputs, budgets, targets and package are dispositioned. Comparison and other controller scopes still need their critical dispositions and the retained whole-change lane.
+- **Problem:** Coverage and several boundary selections are measured. Release, inputs, budgets, targets, package and comparison are dispositioned. The remaining controller scopes need their critical dispositions and the retained whole-change lane.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
