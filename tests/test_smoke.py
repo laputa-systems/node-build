@@ -294,13 +294,18 @@ class CommandSmokeContract(unittest.TestCase):
             "npm/npx absent, --help ok",
         )
         for program in ("npm", "npx"):
-            candidate = install / "bin" / program
-            candidate.touch()
-            try:
-                with self.assertRaisesRegex(smoke.SmokeError, f"^excluded payload present: bin/{program}$"):
-                    smoke.check_exclusions(self.node, self.work, self.work, install)
-            finally:
-                candidate.unlink()
+            for dangling in (False, True):
+                with self.subTest(program=program, dangling=dangling):
+                    candidate = install / "bin" / program
+                    if dangling:
+                        candidate.symlink_to("missing-program")
+                    else:
+                        candidate.touch()
+                    try:
+                        with self.assertRaisesRegex(smoke.SmokeError, f"^excluded payload present: bin/{program}$"):
+                            smoke.check_exclusions(self.node, self.work, self.work, install)
+                    finally:
+                        candidate.unlink()
         (self.work / "help.--help").write_text("fixture help", encoding="utf-8")
         with self.assertRaisesRegex(smoke.SmokeError, "^--help unexpected: fixture help$"):
             smoke.check_exclusions(self.node, self.work, self.work, install)

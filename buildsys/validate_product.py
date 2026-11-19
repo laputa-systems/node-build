@@ -46,7 +46,7 @@ def validate_layout(install_root: Path) -> list[ProductFinding]:
         present = (include / header).is_file()
         findings.append(ProductFinding(f"header-{header}", present, "present" if present else "missing"))
     for relative in ABSENT_PATHS:
-        absent = not (install_root / relative).exists()
+        absent = not (install_root / relative).exists(follow_symlinks=False)
         findings.append(ProductFinding(f"absent-{relative}", absent, "absent" if absent else "must not ship"))
     return findings
 

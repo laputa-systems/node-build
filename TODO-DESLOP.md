@@ -632,7 +632,7 @@ proof revision. Its native jobs recorded both maps and all spans.
 · [Native comparison results](https://github.com/laputa-systems/node-build/actions/runs/44437652960)
 
 
-### Whole-change control and release recipes
+#### Whole-change control and release recipes
 
 The draft whole-change workflow qualified its planner and six controller
 modules on Linux and macOS at `2a7e33877d7fdf151bc0de486e3d1138de05e249`.
@@ -662,7 +662,7 @@ Recipes went from 66 of 80 to all 80. The local full suite's only
 failure is the recorded Xcode and SDK mismatch. Native CI uses the
 locked host tools.
 
-### Qualification receipt
+#### Qualification receipt
 
 A real release-layout archive now exercises the qualification command
 with fixtures at the native product inspection, smoke and relocation
@@ -684,7 +684,7 @@ selection with the release archive recipe, selecting
 `buildsys.qualify_runner.*` and
 `tests/test_product.py::QualificationReceiptTest`.
 
-### Reproduction receipts
+#### Reproduction receipts
 
 The reproduction checks now retain two real-format binary fixtures and
 verify the receipt digest, file size, paths, verdict and differing
@@ -703,7 +703,7 @@ the release archive recipe with `buildsys.reproduce.*`,
 `tests/test_product.py::ReproduceReceiptTest` and
 `tests/test_release.py::ReproduceDiffTest`.
 
-### Native toolchain probes
+#### Native toolchain probes
 
 Fixture output now exercises the macOS and Linux command probes and
 checks all reported toolchain and baseline fields. The tests cover
@@ -719,7 +719,7 @@ excluding `test_lock_matches_host` from the mutation subprocess. The
 ordinary controller still checks the real host where the locked native
 toolchain is present. Both new checks and both linters passed.
 
-### Installed product inspection
+#### Installed product inspection
 
 Real-format ELF and Mach-O fixtures now check the staged installation.
 The ELF case verifies required headers, the license, excluded tools
@@ -735,7 +735,7 @@ with the release archive recipe and `tests/test_product.py`,
 `tests/test_elf.py` and `tests/test_release.py`. The 176 survivors
 remain in DSLP-4. The new checks and both linters passed.
 
-### Relocation receipts
+#### Relocation receipts
 
 The relocation tests execute the copied program from ordinary paths
 and paths with spaces. They verify materialization of a relative
@@ -752,7 +752,7 @@ diagnostic length. Run `buildsys.relocate.*` with
 `tests/test_product.py::RelocateTest` and the release archive recipe.
 All five focused tests and both linters passed.
 
-### Binary path policy
+#### Binary path policy
 
 The path tests resolve references from their loading image and from
 each executable directory. They check absolute paths inside the
@@ -769,7 +769,7 @@ image argument. Use the release archive recipe with
 Mach-O, installed-product and ELF fixtures. All 19 focused checks
 and both linters passed.
 
-### Architecture smoke probe
+#### Architecture smoke probe
 
 The architecture check now requires a successful subprocess exit
 before accepting the reported identity. A real shell fixture prints
@@ -785,7 +785,7 @@ smoke controller and focused survivors remain in DSLP-4. Both new
 tests and both linters passed.
 
 
-### Inspector announcement deadline
+#### Inspector announcement deadline
 
 A subprocess that wrote partial stderr and stayed alive held
 `check_inspector` in a blocking read. A separate successful fixture showed
@@ -802,7 +802,7 @@ DSLP-4. Reuse the smoke recipe above with
 
 
 
-### Mach-O entrypoint kind
+#### Mach-O entrypoint kind
 
 The installed-tree fixture names a Mach-O shared library `bin/node`
 and supplies a separate valid executable. The old product check
@@ -815,7 +815,7 @@ macOS ARM64. This scope includes 163 of 273 in `macho_tree_checks`.
 The remaining identities stay under DSLP-4.
 
 
-### Configure receipt reuse
+#### Configure receipt reuse
 
 A matching receipt and a directory named `config.mk` previously
 skipped configuration. Reuse now requires a generated file. The
@@ -831,7 +831,7 @@ DSLP-4. Reuse the controller mutation recipe with
 `tests/test_controller.py::ConfigureMarkerTest`.
 
 
-### CLI target admission
+#### CLI target admission
 
 Explicit unsupported targets now return status 2 and a stderr
 diagnostic naming the command, option, and help invocation. Before
@@ -861,7 +861,7 @@ the same variant. The broader timeout remains distinct from
 the test catches. All six CLI tests and lint passed.
 
 
-### Version, help, addon and excluded payload probes
+#### Version, help, addon and excluded payload probes
 
 The staged executable fixture exercises version and help content,
 exit status, stderr, footer uniqueness, and completion output.
@@ -893,7 +893,7 @@ Select `tests/test_smoke.py::TestRunnerSmokeTest` with
 mutmut 3.8.1 and pytest 9.2.0 in the controller archive.
 All 11 focused smoke tests and both linters passed.
 
-### Worker and child smoke path
+#### Worker and child smoke path
 
 At `8cd5550f`, the pinned Darwin ARM64 Node 26.12.1 failed
 the worker-and-child smoke probe with a JavaScript syntax error
@@ -913,6 +913,22 @@ in each variant and set `CHECK_TIMEOUT` to 3 seconds. Variants
 44 and 46 use the default text encoding, which writes the
 same ASCII program on the supported hosts. Variant 48 uses
 the equivalent `UTF-8` spelling.
+
+#### Excluded payload directory entries
+
+The published smoke and installed layout checks accepted an excluded
+entry when its symlink target was missing. Both now check the directory
+entry itself. On the previous source the fixtures accepted dangling
+`bin/npm`, `bin/npx` and `lib/node_modules` links. The new checks reject
+them alongside regular files. The layout fixtures also verify the
+status and detail of valid required headers and absent payloads.
+
+The native macOS ARM64 trial used mutmut 3.8.1 and pytest 9.2.0 with
+`check_exclusions` and `validate_layout` selected. It caught 81 of 86
+variants. Three change path case on this filesystem and two substitute
+an equivalent falsey `follow_symlinks` value. All 12 smoke and 33 product
+cases and both linters passed. The only full controller failure was
+the local Xcode and SDK lock check, which also failed on the base.
 
 ## Tickets
 

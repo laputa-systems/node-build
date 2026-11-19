@@ -444,6 +444,8 @@ class InstalledProductTest(unittest.TestCase):
         self.binary.write_bytes(base + source)
         findings = validate_product.validate_install_tree(self.install, "x86_64", "1.2.6", [stage], [source])
         self.assertEqual([finding.name for finding in findings if not finding.ok], [])
+        for name, detail in (("layout-LICENSE", "present"), ("header-node_api.h", "present"), ("absent-bin/npm", "absent")):
+            self.assertIn(validate_product.ProductFinding(name, True, detail), findings)
         self.assertIn(validate_product.ProductFinding("info-source-refs", True, "1 upstream-inert config strings"), findings)
         self.assertIn(validate_product.ProductFinding("no-stage-refs", True, "no stage path leaks"), findings)
 
@@ -459,6 +461,21 @@ class InstalledProductTest(unittest.TestCase):
             validate_product.ProductFinding("no-stage-refs", False, f"stage prefixes: {[stage]}"),
         ])
         self.assertIn(validate_product.ProductFinding("info-source-refs", True, "none"), findings)
+
+    def test_layout_rejects_excluded_entries_with_missing_symlink_targets(self):
+        relative_paths = ("bin/npm", "bin/npx", "lib/node_modules")
+        for relative in relative_paths:
+            path = self.install / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.symlink_to("missing-payload")
+        failures = [
+            finding for finding in validate_product.validate_layout(self.install)
+            if finding.name.startswith("absent-") and not finding.ok
+        ]
+        self.assertEqual(failures, [
+            validate_product.ProductFinding(f"absent-{relative}", False, "must not ship")
+            for relative in relative_paths
+        ])
 
     def test_classifies_macos_architecture_platform_minimum_and_signature(self):
         self.binary.write_bytes(make_macho([build_version_command(), named_command(macho.LC_LOAD_DYLIB, "/usr/lib/libc++.1.dylib")]))
