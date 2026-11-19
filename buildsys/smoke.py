@@ -111,10 +111,11 @@ def check_modules(node: Path, work: Path, fixtures: Path) -> str:
 
 
 def check_node_test(node: Path, work: Path, fixtures: Path) -> str:
-    completed = run_node(node, ["--test", "sample.test.js"], fixtures / "smoke")
+    completed = run_node(node, ["--test", "--test-reporter=tap", "sample.test.js"], fixtures / "smoke")
     if completed.returncode != 0:
         raise SmokeError(f"node:test failed: {completed.stdout}{completed.stderr}")
-    if "pass 1" not in completed.stdout:
+    counts = [line for line in completed.stdout.splitlines() if line.startswith("# pass ")]
+    if counts != ["# pass 1"]:
         raise SmokeError(f"node:test unexpected output: {completed.stdout}")
     return "pass 1"
 

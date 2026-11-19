@@ -30,6 +30,45 @@ class ArchitectureSmokeTest(unittest.TestCase):
                 smoke.check_arch(program, work, work)
 
 
+class TestRunnerSmokeTest(unittest.TestCase):
+    def setUp(self):
+        scratch = ROOT / ".work/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        self.work = Path(self.enterContext(tempfile.TemporaryDirectory(dir=scratch)))
+        self.fixtures = self.work / "fixtures"
+        self.testdir = self.fixtures / "smoke"
+        self.testdir.mkdir(parents=True)
+        self.node = self.work / "node"
+        self.node.write_text(
+            "#!/bin/sh -e\n"
+            'printf "%s\\n" "$@" > arguments\n'
+            "cat report\n"
+            'if [ -f failure ]; then cat failure >&2; exit 7; fi\n',
+            encoding="utf-8",
+        )
+        self.node.chmod(0o755)
+
+    def test_requires_one_passing_test_in_the_tap_report(self):
+        output = "TAP version 13\nok 1 - fixture\n1..1\n# tests 1\n# pass 1\n# fail 0\n"
+        (self.testdir / "report").write_text(output, encoding="utf-8")
+        self.assertEqual(smoke.check_node_test(self.node, self.work, self.fixtures), "pass 1")
+        self.assertEqual(
+            (self.testdir / "arguments").read_text(encoding="utf-8").splitlines(),
+            ["--test", "--test-reporter=tap", "sample.test.js"],
+        )
+        (self.testdir / "failure").write_text("fixture stderr", encoding="utf-8")
+        with self.assertRaises(smoke.SmokeError) as error:
+            smoke.check_node_test(self.node, self.work, self.fixtures)
+        self.assertEqual(str(error.exception), f"node:test failed: {output}fixture stderr")
+
+    def test_rejects_other_pass_counts_and_unrelated_output(self):
+        for output in ("# pass 10\n", "status: pass 1\n", "# pass 1\n# pass 10\n"):
+            with self.subTest(output=output):
+                (self.testdir / "report").write_text(output, encoding="utf-8")
+                with self.assertRaisesRegex(smoke.SmokeError, "node:test unexpected output"):
+                    smoke.check_node_test(self.node, self.work, self.fixtures)
+
+
 class SmokeSuiteTest(unittest.TestCase):
     def test_records_failures_and_continues_with_addon_and_payload_checks(self):
         work = Path("/fixture/work")

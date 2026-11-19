@@ -876,6 +876,23 @@ or the falsey default subprocess check. The native repeat
 and wider smoke inventory stay under DSLP-4. All nine smoke
 tests and lint passed.
 
+The installed Node test smoke probe now requests the TAP reporter
+and requires one exact passing-count line. At `0f016df9`, a local
+process that returned zero caused the previous checker to accept
+`# pass 10`, an unrelated line containing `pass 1`, and two
+conflicting pass counts. The shell fixture now rejects each
+output, checks the actual arguments, and requires zero exit status.
+
+The locked Darwin ARM64 Node 26.12.1 binary at
+`~/.local/share/nodejs/26.12.1-npm12.2.2-darwin-arm64/bin/node`
+reported `v26.12.1` and passed the existing sample through the
+candidate `check_node_test`. The new selection caught 28 of 29
+`check_node_test` variants on macOS. Variant 16 changes the case
+of the fixture directory name on this case-folded volume.
+Select `tests/test_smoke.py::TestRunnerSmokeTest` with
+mutmut 3.8.1 and pytest 9.2.0 in the controller archive.
+All 11 focused smoke tests and both linters passed.
+
 ## Tickets
 
 
