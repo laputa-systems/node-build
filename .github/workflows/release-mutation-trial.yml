@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [comparison]
+        module: [package, release]
         runner: [ubuntu-26.04-arm, xcode-27]
     env:
       PROOF_MODULE: ${{ matrix.module }}
@@ -38,13 +38,15 @@ jobs:
       - name: Run and account for controller mutations
         run: |
           case "$PROOF_MODULE" in
-            comparison) proof_tests='["tests/test_compare.py"]' ;;
+            package) proof_tests='["tests/test_release.py", "tests/test_product.py"]' ;;
+            release) proof_tests='["tests/test_release.py"]' ;;
             *) exit 2 ;;
           esac
           proof="$PWD/.work/tmp/controller-proof"
           mkdir -p "$proof/.work/tmp"
           : > "$proof/.work/tmp/.keep"
           export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+          export LC_ALL=C PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 PYTHONIOENCODING=utf-8
           git archive HEAD | tar -x -C "$proof"
           cat >> "$proof/pyproject.toml" <<TOML
 
