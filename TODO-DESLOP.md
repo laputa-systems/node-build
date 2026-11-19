@@ -5,122 +5,91 @@ Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/mai
 
 ## Report
 
-Bench adds a tiered entrypoint and records coverage and operability gaps in
-DSLP-9 through DSLP-11. Native builds and Scenario comparisons remain manual;
-archive size checks require an existing packaged artifact.
+DSLP-1 base: `c63d32672583e134ed705396ef9951e437546e31`, the
+first-parent of Ground squash #18. Review intent: preserve the controller's
+contracts while strengthening provenance, tests and benchmark visibility.
+The cumulative review through #87 found no additional demonstrated defect.
 
-Dead code (DSLP-5) is done at base `043c8cff201b67516d048ab0e0ed2d186890c5a6`. Ruff F401/F841 pass in `make lint`. Vulture 2.16 at 60% reported 17 names in `buildsys/` and `build.py`. Five were removed: `STAGED_BINDIR`, `STAGED_NODE`, `STAGED_INCLUDEDIR`, `STAGED_LIBDIR` and `LICENSE_NAME` in `buildsys/product.py`. Each had no reference in the repository, `.github/workflows`, the Makefile or tests, and `buildsys` is not imported outside this repository; the `dl` consumer reads archives, not this module. The other 12 are retained as discovery-only false positives: nine TypedDict fields and two `build_python` dataclass fields are serialized record and report fields, and `expected_release_assets` is the release-asset oracle used by controller and release tests. Vulture stays out of `make lint` because a whitelist would need more than five entries. The former single-target `assemble` wrapper was already removed by `f10806e`. Deptry 0.25.1 finds no dependency issues with `--package-module-name-map laputa-buildlib=buildlib`; without it, it misreads the import name. After the removal, the locked environment ran 174 tests with only the recorded host Xcode/SDK lock mismatch failing, as on base, and Ruff and ty passed.
+**Scorecard** (physical first-party Python lines, `build.py` and `buildsys/`
+versus `tests/`): source 2,545 → 2,871; tests 981 → 3,422. The Python
+escape-hatch expression in deslop's tools reference finds 7 → 7 occurrences
+in source and 0 → 0 in tests. Dead-code cuts: five unused product constants
+(5 lines) and the unused single-target assembly wrapper (4 lines); zero
+dependencies removed. Ground's warm `make test` was 0.85 s in emulated Alpine
+(74 tests); a current macOS run took 19.856 s (179 tests, one host-lock
+failure). Different hosts and workload sizes make these non-comparable; no
+timing gate was established. Ground coverage was not measured; the earlier
+[hosted trial](https://github.com/laputa-systems/node-build/actions/runs/44297774733)
+recorded 43.9% lines and 32.6% branches over 21 files, before later tests.
+At #87, local branch instrumentation recorded 88.3% lines and 82.6% branches
+(179 tests, the same host-lock failure); host and platform differ from the trial.
 
-Ground (DSLP-1) passed at base `c63d32672583e134ed705396ef9951e437546e31`. The pinned Alpine environment passed all 74 tests twice with Git installed for the release fixtures. Local macOS has Xcode 27.2 and SDK 27.2, while the lock expects Xcode 27.1 and SDK 27.0. [Verification](AGENTS.md#verification) records the command costs and coverage.
+Findings filed: P1 0, P2 3 (DSLP-6, 7, 9), P3 3 (DSLP-8, 10, 11), P4 0;
+fixed: P2 2 (6 and 7), P1/P3/P4 0. These counts exclude the step tickets and
+unticketed fixes. No escaped regression has been established; production
+escape monitoring was not performed. DSLP-9 remains **environment-blocked**:
+`perf-gate-ready` reports a busy host; a quiet native host is needed. Perf gate
+deferred: host busy. No overall runtime or build-time regression verdict is
+claimed. #87 proved the Edit harness and missing-archive Change preflight;
+the Change size workload requires a packaged archive, and Scenario/Full need
+native builds. DSLP-10 and 11 retain attribution and freshness gaps.
 
-Diagnose (DSLP-2) reviewed the first-party controller, artifact and provenance handoffs, docs, and sampled tests at `524ced8eda5ebbd7884d739a8cc5b58887d8ae75`. It filed two P2 findings, DSLP-6 and DSLP-7, with [sealed fixture reproductions](docs/DIAGNOSE.md). Pinned Alpine `make test` passed 74 tests including the musl host check; native `make lint` passed. The fixtures exercise local assembly. Native Node builds and the hosted release workflow remain separate checks.
+**Mutation evidence:** the required scopes protect archive admission, digest
+and receipt links, atomic publication and cleanup; package installation;
+size ceilings; and smoke success/failure reporting. Their ordinary tests
+exercise these behaviors, including negative inputs. Required release census
+([run](https://github.com/laputa-systems/node-build/actions/runs/44428020350)):
+390 identities, Linux 382 caught and macOS 373; shared survivors cover
+subprocess defaults, revision trimming and diagnostic wording, while nine
+macOS path-case variants were caught on Linux. Required package census
+([run](https://github.com/laputa-systems/node-build/actions/runs/44436014451)):
+315 identities, Linux 305 and macOS 296 caught; seven shared installer
+survivors fail direct replay and three are equivalent codec spellings; nine
+macOS case variants were caught on Linux. Required budgets
+([run](https://github.com/laputa-systems/node-build/actions/runs/44433110100/attempts/2)):
+81 identities, Linux 80 and macOS 78 caught; the shared default tar mode is
+equivalent and Linux catches the two case variants. Required focused smoke
+selections caught 122 architecture/suite and 35 async-readback variants;
+worker-child had 62/65 caught and three equivalent encodings. Other focused
+smoke survivors include equivalent defaults and case variants whose
+case-sensitive replays remain incomplete. Do not count these as passed.
 
+Advisory full smoke inventory: 683 caught, 316 missed, 0 timeouts out of 999;
+remaining survivors are unclassified. Product, qualification, reproduction,
+relocation and CLI module sweeps are advisory and incomplete; qualification
+and reproduction case replays remain outstanding, and one CLI timeout was
+unconfirmed although a focused selection caught that variant. Unviable counts
+and complete per-scope timeout counts were not recorded here; see linked jobs
+and Git history. No before-campaign mutation baseline is available. These are
+scope outcomes, not a score: the protected behaviors and defects fixed are the
+outcome. The #85 closure ran no new mutation trials (0 runner-minutes); total
+historical mutation runner-minutes were not consolidated. The linked release
+census jobs consumed about 5.6 combined runner-minutes (1m08s Linux, 4m26s
+macOS); this is only that run, not the campaign total. Whole-change mutation
+workflows #47 and #61 remain drafts.
 
-Types (DSLP-3) validated the pinned buildlib wheel source record at
-`20884c2`. The bootstrap now checks URL, digest, and integer size before
-cache or network use. The old code accepted a boolean size as equal to one
-byte. A sealed fixture detected it, and the download fixture verified that
-a digest mismatch leaves existing cache bytes intact. The valid cache-hit
-fixture still passes. Tests passed all 76 cases in the pinned Alpine builder,
-including the musl host check. Ruff and ty passed on macOS.
+**Steps and cost.** Ground #18 mapped boundaries; Alpine tests 0.81/0.85 s,
+macOS lint 0.67/0.08 s cold/warm. Diagnose #19 reproduced the two assembly
+findings in [fixtures](docs/DIAGNOSE.md). Types #20–21 fixed the boolean wheel
+size and non-object configure marker; seven unsound-return findings were
+resolved, while generic shapes remain DSLP-8. Tests #22–85 added boundary
+fixtures and fixed release provenance, invalid budgets, process errors and
+smoke false passes; [native qualification](https://github.com/laputa-systems/node-build/actions/runs/44367665068)
+covered both targets at its recorded revision. Dead code #86: vulture found
+17 candidates; five names removed, 12 dynamic/serialized or test uses retained.
+Deptry needed `laputa-buildlib=buildlib` mapping and then found no dependency
+issues. Bench #87 added tiered entrypoints and filed DSLP-9–11. Report reviewed
+the cumulative diff and added no findings. Per-step total wall time and CI
+minutes were not recorded; individual linked runs retain job timings.
 
-The strict probes fell from nine to seven unsound returns and from 33 to
-32 missing type arguments. The wheel bootstrap has zero findings under
-both probes. The wider rules remain unadopted while the bootstrap lock,
-build record, and smoke paths still have type gaps.
-
-
-The second Types slice adopts ty's `unsound-return-statement` rule. A
-sealed configure-marker fixture showed that a valid JSON array caused an
-attribute error, so the controller now treats a non-object marker as stale.
-Toolchain version parsing returns the matched substring as a string, and
-the smoke runner declares the text result produced by `subprocess.run`.
-
-The original strict probe reported nine unsound returns. The post-wheel
-baseline at `8b53815` still reports seven with the adopted rule enabled.
-The final lint is clean. The missing-type-argument probe has 30 findings
-left from 33, and the unused-ignore and ANN401 probes found no qualifying
-witness. The 77-test pinned Alpine suite, including the musl host check,
-passed. The local Xcode and Clang version probes also passed.
-
-
-Tests (DSLP-4) is done under the revised mutation policy. Coverage is a
-report, not a gate: [the hosted coverage run](https://github.com/laputa-systems/node-build/actions/runs/44297774733)
-measured the 21 first-party Python files. The required mutation scope is the
-following contract boundaries, not whole modules:
-
-- Archive admission, digests, atomic publication and staging cleanup:
-  `buildsys/release.py` `all_checks_ok`, `validate_triple`, `stage_triple`
-  and `assemble_all`, plus the Git and record readers they use. The ordinary
-  `tests/test_release.py` fixtures reject incomplete or stale records and
-  changed archive bytes, check checksums and concurrent publication, and
-  verify cleanup after failed publication. `buildsys/package.py` `package`,
-  `install_to_stage` and `create_archive` are covered by release and product
-  fixtures for receipt and binary digests, failed checks, deterministic
-  archive layout, and refusal to overwrite published archives.
-- Release budgets: `buildsys/budgets.py` `archive_payload_bytes`,
-  `_byte_limit` and `check_budgets`. `ArchiveBudgetTest` checks exact ceilings,
-  both exceeded limits, invalid limits and missing inputs using a real archive.
-- Success and failure reporting: `buildsys/smoke.py` `run_node`, `run_suite`
-  and the probe result checks, including the complete success-line and exit
-  checks fixed in #84. `tests/test_smoke.py` checks matching and decorated
-  markers, nonzero exits, exact TAP counts, filesystem readback, timeout and
-  error reporting, and suite continuation. Inspector fixtures check malformed
-  responses, deadlines and child cleanup. `tests/test_cli.py` checks controller
-  results and error streams.
-
-The prior results and survivor dispositions are grouped by behavior:
-
-- Release admission and publication: the matched native release census at
-  `46c82f2` accounted for 390 identities. Linux caught 382 and macOS 373.
-  Five shared survivors preserve subprocess defaults or revision trimming;
-  two change incidental diagnostic text. The omitted UTF-8 encoding was caught
-  by the C-locale fixture. Nine macOS path-case variants were caught on a
-  case-sensitive host. [Release census](https://github.com/laputa-systems/node-build/actions/runs/44428020350)
-- Package publication and cleanup: the post-fix native census at `f04ca44`
-  accounted for 315 identities. Linux caught 305 and macOS 296. Seven of the
-  ten shared installer survivors fail the nested-stage or C-locale fixture
-  when replayed directly; three spell the same UTF-8 codec differently.
-  Nine macOS path-case variants were caught on Linux. Private temporary-name
-  prefixes have no consumer contract and need no assertion.
-  [Package census](https://github.com/laputa-systems/node-build/actions/runs/44436014451)
-- Budgets: the native jobs accounted for 81 identities. Linux caught 80 and
-  macOS 78. The shared survivor omits the equivalent default tar read mode;
-  Linux catches the two macOS path-case variants.
-  [Budget results](https://github.com/laputa-systems/node-build/actions/runs/44433110100/attempts/2)
-- Smoke reporting: the focused architecture and suite selection caught all
-  122 matched variants; the two process-wrapper survivors use equivalent
-  falsey subprocess defaults. The async readback selection caught all 35.
-  The worker-child native selection caught 62 of 65; the other three select
-  equivalent UTF-8 encodings for its ASCII script. The version, help, addon
-  and exclusion selection had seven survivors from case changes, equivalent
-  Darwin defaults or falsey subprocess defaults. The node-test selection's
-  one survivor changes fixture path case on macOS. The exclusion selection's
-  three path-case variants likewise require a case-sensitive replay; its two
-  other variants use equivalent falsey `follow_symlinks` values. These
-  case-sensitive replays are incomplete, not passes. Incidental diagnostic
-  wording does not warrant a new test.
-
-The full smoke inventory at base `468d0761` caught 683 of 999 identities
-after #84, with 316 survivors and no timeouts. That module sweep includes
-native script effects beyond the reporting boundaries above; its remaining
-survivors are unclassified advisory work, not a passed required scope. The
-broader product inspection, qualification, reproduction, relocation and CLI
-module sweeps are also advisory and incomplete. Qualification and reproduction
-still have macOS path-case survivors awaiting a case-sensitive replay. The
-broader CLI run had one unconfirmed timeout, although a focused selection caught
-the same variant. No whole-change mutation lane is required by this closure;
-the draft workflows in #47 and #61 remain drafts. No new mutation trial was run
-for this closure: aggregate runner cost was 0 minutes. Historical results use
-mutmut 3.8.1 and pytest 9.2.0; their linked jobs retain platform and result data.
-
-Release provenance (DSLP-6) closed after sealed fixtures established the
-checkout, source lock, binary, receipt and archive digest links. They also
-check that a changed archive cannot be published between validation and copy.
-[Native artifact qualification](https://github.com/laputa-systems/node-build/actions/runs/44367665068)
-separately built and verified both supported targets. It is not a substitute
-for the controller fixtures or a new artifact qualification at this revision.
-
+**Method feedback and shared-file gaps.** Require exact success lines and
+nonempty qualification evidence: substring checks and vacuous `all()` let
+false passes slip through. Vulture flags serialized fields; deptry needs the
+package/import mapping. Unused-ignore and ANN401 type probes found no qualifying
+witness. The shared deslop tools report template still asks for mutant totals;
+it should foreground protected behaviors and fixed defects and label required
+versus advisory scopes and runner cost, matching campaign decision 4. No shared
+file was changed.
 
 ## Tickets
 
