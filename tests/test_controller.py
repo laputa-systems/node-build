@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from buildlib import locks
+from buildlib import targets as host_targets
 
 import build
 import buildsys
@@ -41,6 +42,31 @@ class TargetTest(unittest.TestCase):
     def test_unknown_triple_rejected(self):
         with self.assertRaises(targets.UnsupportedTargetError):
             targets.target_for_triple("x86_64-apple-darwin")
+
+    def test_native_target_uses_the_node_build_baseline(self):
+        for system, machine, triple, baseline in (
+            ("Darwin", "arm64", "aarch64-apple-darwin", "-mcpu=apple-m1"),
+            ("Linux", "x86_64", "x86_64-unknown-linux-musl", "-march=x86-64-v2"),
+        ):
+            with (
+                self.subTest(system=system, machine=machine),
+                patch.object(host_targets.platform, "system", return_value=system),
+                patch.object(host_targets.platform, "machine", return_value=machine),
+            ):
+                self.assertEqual(targets.native_target().cpu_baseline_cflag, baseline)
+                self.assertEqual(build.resolve_target(None), triple)
+
+    def test_omitted_target_rejects_parked_native_linux_arm64(self):
+        with (
+            patch.object(host_targets.platform, "system", return_value="Linux"),
+            patch.object(host_targets.platform, "machine", return_value="aarch64"),
+            redirect_stderr(io.StringIO()) as stderr,
+            self.assertRaises(SystemExit) as failure,
+        ):
+            build.main(["check-budgets"])
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("no --target given", stderr.getvalue())
+        self.assertIn("x86_64-unknown-linux-musl", stderr.getvalue())
 
 
 class ArchiveBudgetTest(unittest.TestCase):
