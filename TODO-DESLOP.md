@@ -930,6 +930,22 @@ an equivalent falsey `follow_symlinks` value. All 12 smoke and 33 product
 cases and both linters passed. The only full controller failure was
 the local Xcode and SDK lock check, which also failed on the base.
 
+#### Async filesystem readback
+
+The async filesystem smoke previously accepted corrupted readback with
+its original length. The Node child now emits the read bytes. The
+controller compares them with the bytes written and requires zero exit.
+The portable shell fixture checks matching data, wrong data of the same
+length, and an error exit that prints matching data.
+
+The pinned macOS ARM64 Node 26.12.1 rejected an equivalent-length fault
+that the base accepted. Set `NODE_OPTIONS` to `--require=<fixture>` with
+`require('node:fs/promises').readFile = async () => 'y'.repeat(1000)` and
+run `check_fs_async` in fresh scratch. Remove the preload and repeat to
+verify the written file contains 1,000 `x` bytes. The portable case and
+native control together caught all 35 `check_fs_async` identities with
+mutmut 3.8.1 and pytest 9.2.0. All 13 smoke cases and both linters passed.
+
 ## Tickets
 
 

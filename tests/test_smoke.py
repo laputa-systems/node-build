@@ -30,6 +30,31 @@ class ArchitectureSmokeTest(unittest.TestCase):
                 smoke.check_arch(program, work, work)
 
 
+class FileSystemSmokeTest(unittest.TestCase):
+    def test_requires_matching_async_readback_and_successful_exit(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / ".work/tmp") as temporary:
+            work = Path(temporary)
+            program = work / "node fixture"
+            program.write_text(
+                '#!/bin/sh -e\n'
+                'test "$#" -eq 2 && test "$1" = -e\n'
+                'cat readback\n'
+                'if [ -f failing ]; then printf "fixture failure" >&2; exit 7; fi\n',
+                encoding="utf-8",
+            )
+            program.chmod(0o755)
+            readback = work / "readback"
+            readback.write_bytes(b"x" * 1000)
+            self.assertEqual(smoke.check_fs_async(program, work, work), "fs ok")
+            readback.write_bytes(b"y" * 1000)
+            with self.assertRaisesRegex(smoke.SmokeError, "^fs check returned unexpected data$"):
+                smoke.check_fs_async(program, work, work)
+            readback.write_bytes(b"x" * 1000)
+            (work / "failing").touch()
+            with self.assertRaisesRegex(smoke.SmokeError, "^fs check failed: fixture failure$"):
+                smoke.check_fs_async(program, work, work)
+
+
 class TestRunnerSmokeTest(unittest.TestCase):
     def setUp(self):
         scratch = ROOT / ".work/tmp"

@@ -121,18 +121,20 @@ def check_node_test(node: Path, work: Path, fixtures: Path) -> str:
 
 
 def check_fs_async(node: Path, work: Path, fixtures: Path) -> str:
+    payload = "x" * 1000
     script = (
         "const fs = require('node:fs/promises');"
         "(async () => {"
-        "  await fs.writeFile('probe.txt', 'x'.repeat(1000));"
+        f"  await fs.writeFile('probe.txt', {json.dumps(payload)});"
         "  const data = await fs.readFile('probe.txt', 'utf8');"
-        "  if (data.length !== 1000) { process.exit(1); }"
-        "  console.log('fs ok');"
+        "  process.stdout.write(data);"
         "})();"
     )
     completed = run_node(node, ["-e", script], work)
-    if completed.returncode != 0 or "fs ok" not in completed.stdout:
+    if completed.returncode != 0:
         raise SmokeError(f"fs check failed: {completed.stderr}")
+    if completed.stdout != payload:
+        raise SmokeError("fs check returned unexpected data")
     return "fs ok"
 
 
