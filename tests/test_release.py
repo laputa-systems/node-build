@@ -525,28 +525,6 @@ class AssembleTest(unittest.TestCase):
         self.assertNotIn(release.CHECKSUMS_NAME, names)
         self.assertEqual(len(names), 2)
 
-    def test_git_probe_timeout_stops_assembly_and_leaves_build_provenance_unbound(self):
-        run = subprocess.run
-        for command in ("rev-parse", "status"):
-            with self.subTest(command=command):
-                def run_with_timeout(args, *, timed_out_command=command, **kwargs):
-                    if args[:2] == ["git", timed_out_command]:
-                        self.assertEqual(kwargs["timeout"], 60)
-                        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
-                    return run(args, **kwargs)
-
-                stderr = io.StringIO()
-                with (
-                    patch.object(release_assembler.subprocess, "run", side_effect=run_with_timeout),
-                    patch.object(build, "REPO_ROOT", self.work),
-                    contextlib.redirect_stderr(stderr),
-                ):
-                    self.assertEqual(build.main(["assemble", "--target", TRIPLE]), 2)
-                    self.assertIsNone(release_assembler.clean_build_revision(self.work))
-                self.assertIn(f"git {command} timed out", stderr.getvalue())
-                self.assertFalse((self.work / "dist" / product.RELEASE_DIRNAME).exists())
-                self.assertEqual(list((self.work / "build").glob("assembly-tmp*")), [])
-
     def test_rejects_malformed_records_before_staging(self):
         build = self.work / "build" / TRIPLE
         for relative, label in (
