@@ -12,6 +12,32 @@ from buildsys import smoke
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class ProcessSmokeRunnerTest(unittest.TestCase):
+    def test_passes_workdir_arguments_environment_and_failed_status(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / ".work/tmp") as temporary:
+            work = Path(temporary)
+            (work / "owner fixture").touch()
+            program = work / "node fixture"
+            program.write_text(
+                '#!/bin/sh -e\n'
+                'test -f "owner fixture"\n'
+                'printf "%s:%s" "$TEST_SMOKE_RUNNER" "$1"\n'
+                'printf "probe stderr" >&2\n'
+                'exit 7\n',
+                encoding="utf-8",
+            )
+            program.chmod(0o755)
+            with patch.dict(os.environ, {"TEST_SMOKE_RUNNER": "inherited"}):
+                result = smoke.run_node(program, ["two words"], work)
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (7, "inherited:two words", "probe stderr"))
+
+    def test_applies_the_probe_deadline(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / ".work/tmp") as temporary:
+            with patch.object(smoke, "CHECK_TIMEOUT", 0.2), self.assertRaises(subprocess.TimeoutExpired) as caught:
+                smoke.run_node(Path("/bin/sh"), ["-c", "exec sleep 1"], Path(temporary))
+            self.assertEqual(caught.exception.timeout, 0.2)
+
+
 class ArchitectureSmokeTest(unittest.TestCase):
     def test_rejects_failed_architecture_probe_with_matching_output(self):
         with tempfile.TemporaryDirectory(dir=ROOT / ".work" / "tmp") as temporary:
@@ -24,7 +50,15 @@ class ArchitectureSmokeTest(unittest.TestCase):
             program.chmod(0o755)
             with self.assertRaisesRegex(smoke.SmokeError, r"identity probe failed \(7\): fixture failure"):
                 smoke.check_arch(program, work, work, "x86_64-unknown-linux-musl")
-            program.write_text('#!/bin/sh\nprintf "x64/linux\\n"\n', encoding="utf-8")
+            (work / "identity-workdir").touch()
+            program.write_text(
+                "#!/bin/sh -e\n"
+                'test -f identity-workdir\n'
+                'test "$#" -eq 2 && test "$1" = -p\n'
+                "test \"$2\" = \"process.arch + '/' + process.platform\"\n"
+                'printf "x64/linux\\n"\n',
+                encoding="utf-8",
+            )
             self.assertEqual(smoke.check_arch(program, work, work, "x86_64-unknown-linux-musl"), "x64/linux")
             with self.assertRaisesRegex(smoke.SmokeError, "^identity x64/linux != arm64/darwin$"):
                 smoke.check_arch(program, work, work)
@@ -144,18 +178,37 @@ class SmokeSuiteTest(unittest.TestCase):
         with (
             patch.object(smoke, "check_arch", return_value="x64/linux") as architecture,
             patch.object(smoke, "CHECKS", (("architecture", architecture), ("deadline", timed_out), ("broken", broken))),
-            patch.object(smoke, "check_napi_addon", side_effect=OSError("compiler unavailable")) as addon,
+            patch.object(smoke, "check_napi_addon", side_effect=OSError("x" * 301)) as addon,
             patch.object(smoke, "check_exclusions", return_value="no excluded files") as exclusions,
         ):
             self.assertEqual(smoke.run_suite(node, install, headers, work, fixtures, triple), [
                 smoke.SmokeFinding("architecture", True, "x64/linux"),
                 smoke.SmokeFinding("deadline", False, "Command 'fixture' timed out after 60 seconds"),
                 smoke.SmokeFinding("broken", False, "x" * 300),
-                smoke.SmokeFinding("napi-addon", False, "compiler unavailable"),
+                smoke.SmokeFinding("napi-addon", False, "x" * 300),
                 smoke.SmokeFinding("exclusions", True, "no excluded files"),
             ])
         architecture.assert_called_once_with(node, work, fixtures, triple)
         addon.assert_called_once_with(node, work, fixtures, headers, triple)
+        exclusions.assert_called_once_with(node, work, fixtures, install)
+
+
+    def test_records_successful_addon_and_truncates_exclusions_failure(self):
+        work = Path("/fixture/work")
+        install = work / "install"
+        node = install / "bin/node"
+        headers = install / "include/node"
+        fixtures = work / "fixtures"
+        with (
+            patch.object(smoke, "CHECKS", ()),
+            patch.object(smoke, "check_napi_addon", return_value="loaded") as addon,
+            patch.object(smoke, "check_exclusions", side_effect=smoke.SmokeError("x" * 301)) as exclusions,
+        ):
+            self.assertEqual(smoke.run_suite(node, install, headers, work, fixtures), [
+                smoke.SmokeFinding("napi-addon", True, "loaded"),
+                smoke.SmokeFinding("exclusions", False, "x" * 300),
+            ])
+        addon.assert_called_once_with(node, work, fixtures, headers, "aarch64-apple-darwin")
         exclusions.assert_called_once_with(node, work, fixtures, install)
 
 

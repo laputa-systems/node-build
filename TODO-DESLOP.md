@@ -924,6 +924,23 @@ in each variant and set `CHECK_TIMEOUT` to 3 seconds. Variants
 same ASCII program on the supported hosts. Variant 48 uses
 the equivalent `UTF-8` spelling.
 
+#### Smoke runner process and suite outcomes
+
+The process fixture verifies the child working directory, argument
+boundaries, inherited environment, both streams, nonzero status and the
+deadline. The architecture fixture checks its actual child arguments.
+Suite fixtures verify default-target forwarding, successful addon
+reporting, and bounded errors from both final checks. All 18 smoke
+cases, the help-footer test, and both linters passed.
+
+The controller has no callers of the internal `run_node` environment
+override. Removing it lets the subprocess inherit the same environment.
+On macOS ARM64 the added cases caught all 122 matched architecture and
+suite variants, up from 92. On the changed process wrapper, 14 of 16
+variants were caught. The two remaining variants replace `check=False`
+with `None` or omit it. Both preserve nonzero result handling. The
+selection used mutmut 3.8.1 and pytest 9.2.0.
+
 #### Excluded payload directory entries
 
 The published smoke and installed layout checks accepted an excluded

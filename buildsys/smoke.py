@@ -31,14 +31,9 @@ EXPECTED_IDENTITY = {
 }
 
 
-def run_node(
-    node: Path, args: list[str], cwd: Path, extra_env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
-    env = dict(os.environ)
-    if extra_env:
-        env.update(extra_env)
+def run_node(node: Path, args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(node), *args], cwd=cwd, env=env,
+        [str(node), *args], cwd=cwd,
         capture_output=True, text=True, timeout=CHECK_TIMEOUT, check=False,
     )
 
