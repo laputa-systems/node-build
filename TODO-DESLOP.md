@@ -684,6 +684,25 @@ selection with the release archive recipe, selecting
 `buildsys.qualify_runner.*` and
 `tests/test_product.py::QualificationReceiptTest`.
 
+### Reproduction receipts
+
+The reproduction checks now retain two real-format binary fixtures and
+verify the receipt digest, file size, paths, verdict and differing
+chunk offsets. The cases cover identical output, changes confined to
+Mach-O UUID or ELF build-ID metadata, and a content change. The ELF
+case starts without a build tree. The existing-tree case verifies
+cleanup between builds and preservation of unrelated target data.
+The verdict no longer has an unused initial value.
+
+The earlier selection caught 22 of 177 identities and marked the
+other 155 as unexercised. The current source catches 170 of 174 on
+macOS. All four survivors uppercase a path used by `wipe_tree`
+(5, 7 and 12) or the receipt writer (`reproduce` 132). Repeat on native
+Linux to check those variants on a case-sensitive filesystem. Use
+the release archive recipe with `buildsys.reproduce.*`,
+`tests/test_product.py::ReproduceReceiptTest` and
+`tests/test_release.py::ReproduceDiffTest`.
+
 ## Tickets
 
 
