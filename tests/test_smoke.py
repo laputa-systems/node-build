@@ -236,6 +236,25 @@ class InspectorSmokeTest(unittest.TestCase):
         )
 
 
+    def test_reports_wrong_target_shapes_and_reaps_child(self):
+        for payload in (b'{"other":true}', b'[null]', b'["id"]', b'[{"id":null}]', b'[{"id":""}]'):
+            with self.subTest(payload=payload):
+                self.run_probe(
+                    "printf 'Debugger listening on ws://127.0.0.1:43210/id' >&2; exec sleep 4",
+                    error="^inspector list unexpected:",
+                    response_body=payload,
+                )
+
+    def test_reports_malformed_target_list_and_reaps_child(self):
+        for payload in (b'[', b'\xff'):
+            with self.subTest(payload=payload):
+                self.run_probe(
+                    "printf 'Debugger listening on ws://127.0.0.1:43210/id' >&2; exec sleep 4",
+                    error="^cannot decode inspector list:",
+                    response_body=payload,
+                )
+
+
 class CommandSmokeContract(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(dir=ROOT / ".work" / "tmp")

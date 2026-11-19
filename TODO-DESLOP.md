@@ -802,6 +802,16 @@ DSLP-4. Reuse the smoke recipe above with
 
 
 
+#### Inspector target-list decoding
+
+The inspector child could return a malformed response that raised a
+Python decoding or type error outside the smoke suite's failure
+handling. The probe now reports malformed UTF-8, invalid JSON, and a
+missing or unusable target ID as smoke failures. A real short-lived
+fixture child exercises those responses and is reaped every time.
+The fixtures failed on the prior decoder. Both linters and all 15 smoke
+cases passed on the candidate.
+
 #### Mach-O entrypoint kind
 
 The installed-tree fixture names a Mach-O shared library `bin/node`

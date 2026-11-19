@@ -370,10 +370,15 @@ def check_inspector(node: Path, work: Path, fixtures: Path) -> str:
                 raise SmokeError(f"inspector endpoint not announced: {buffered.decode(errors='replace')}")
             port = int(match.group(1))
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=30) as response:
-                targets = json.loads(response.read().decode("utf-8"))
-            if not targets or "id" not in targets[0]:
+                try:
+                    targets = json.loads(response.read().decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise SmokeError(f"cannot decode inspector list: {error}") from error
+            first = targets[0] if isinstance(targets, list) and targets else None
+            identifier = first.get("id") if isinstance(first, dict) else None
+            if not isinstance(identifier, str) or not identifier:
                 raise SmokeError(f"inspector list unexpected: {targets}")
-            return f"inspector target {targets[0]['id'][:8]}"
+            return f"inspector target {identifier[:8]}"
         finally:
             process.kill()
 
