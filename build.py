@@ -119,7 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def resolve_target(raw: str | None) -> str:
     if raw is not None:
-        return raw
+        return target_for_triple(raw).triple
     try:
         return native_target().triple
     except UnsupportedTargetError:
@@ -134,11 +134,14 @@ def resolve_target(raw: str | None) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command not in ("assemble", "controller-test"):
+        try:
+            args.target = resolve_target(args.target)
+        except UnsupportedTargetError as error:
+            return _fail(f"{args.command} --target: {error}. See build.py {args.command} --help")
     if args.command == "doctor":
-        args.target = resolve_target(args.target)
         return cmd_doctor(args)
     if args.command == "fetch":
-        args.target = resolve_target(args.target)
         return cmd_fetch(args)
     if args.command == "controller-test":
         import unittest
@@ -149,8 +152,6 @@ def main(argv: list[str] | None = None) -> int:
         result = runner.run(suite)
         return 0 if result.wasSuccessful() else 1
     if args.command == "build":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             binary = node.build(REPO_ROOT, args.target, args.jobs)
         except node.BuildError as error:
@@ -158,8 +159,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"built: {binary}")
         return 0
     if args.command == "package":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             from buildsys import node as node_driver
 
@@ -170,8 +169,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sha256: {result['sha256']}")
         return 0
     if args.command == "qualify":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             record = qualify_runner.qualify(REPO_ROOT, args.target)
         except qualify_runner.QualifyError as error:
@@ -190,6 +187,8 @@ def main(argv: list[str] | None = None) -> int:
                 return _fail("no --target given")
         try:
             result = release_assembler.assemble_all(REPO_ROOT, triples)
+        except UnsupportedTargetError as error:
+            return _fail(f"assemble --target: {error}. See build.py assemble --help")
         except release_assembler.AssemblyError as error:
             return _fail(str(error))
         print(f"release: {result['release_dir']}")
@@ -197,8 +196,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"assets: {', '.join(result['assets'])}")
         return 0
     if args.command == "published-smoke":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             record = published_smoke_runner.published_smoke(REPO_ROOT, args.target)
         except published_smoke_runner.PublishedSmokeError as error:
@@ -206,8 +203,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"published smoke: {record['passed']}/{record['total']} passed")
         return 0
     if args.command == "compare-reference":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             from buildsys import comparison
 
@@ -218,8 +213,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{name}: {probe['verdict']}")
         return 0
     if args.command == "check-budgets":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             from buildsys import budgets
 
@@ -229,8 +222,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"budgets ok: compressed {record['compressed']}, payload {record['payload']}")
         return 0
     if args.command == "reproduce":
-        if args.target is None:
-            args.target = resolve_target(None)
         try:
             from buildsys import reproduce as reproduce_runner
 

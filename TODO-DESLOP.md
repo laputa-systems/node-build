@@ -830,6 +830,22 @@ command caught 105 of 114 on macOS ARM64. The other nine stay in
 DSLP-4. Reuse the controller mutation recipe with
 `tests/test_controller.py::ConfigureMarkerTest`.
 
+
+### CLI target admission
+
+Explicit unsupported targets now return status 2 and a stderr
+diagnostic naming the command, option, and help invocation. Before
+this change, six commands raised uncaught errors and two reported
+unrelated missing inputs. The existing native target and job
+defaults still reach the same controller calls. Assembly continues
+to accept a comma-separated target list and rejects an unsupported
+member before reading checkout state.
+
+The ten command controls cover the parked Linux ARM64 spelling and
+a mixed assembly list, with valid build and reproduction controls
+for stdout and argument forwarding. All 51 focused tests and lint
+passed.
+
 ## Tickets
 
 
