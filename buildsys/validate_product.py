@@ -55,7 +55,6 @@ def macho_tree_checks(
     install: Path, machine: str, deployment_target: str
 ) -> list[ProductFinding]:
     install = install.resolve()
-    required = (install / "bin" / "node",)
     images = macho.find_machos(install)
     universal = [path for path in install.rglob("*") if path.is_file() and not path.is_symlink()
                  and _is_fat(path)]
@@ -71,9 +70,9 @@ def macho_tree_checks(
         executables = [image for image in images if macho.read_header(image).kind == "execute"]
     except macho.MachOError as error:
         return findings + [ProductFinding("macho-parse", False, str(error)[:200])]
-    missing = [str(image.relative_to(install)) for image in required if image not in images]
+    present = install / "bin" / "node" in executables
     findings.append(
-        ProductFinding("macho-required-images", not missing, f"missing: {missing}" if missing else "bin/node present")
+        ProductFinding("macho-required-images", present, "bin/node present" if present else "missing executable: bin/node")
     )
     buckets: dict[str, list[str]] = {
         "macho-arch": [], "macho-platform": [], "macho-minos": [],

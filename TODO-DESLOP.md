@@ -801,6 +801,19 @@ DSLP-4. Reuse the smoke recipe above with
 `buildsys.smoke.x_check_inspector__mutmut_*`.
 
 
+
+### Mach-O entrypoint kind
+
+The installed-tree fixture names a Mach-O shared library `bin/node`
+and supplies a separate valid executable. The old product check
+accepted this layout. It now checks the kind of the named entrypoint.
+Replacing that file with the executable makes the same fixture pass.
+
+All 32 product tests and lint passed. The current archive selection
+using the product and release suites caught 323 of 514 identities on
+macOS ARM64. This scope includes 163 of 273 in `macho_tree_checks`.
+The remaining identities stay under DSLP-4.
+
 ## Tickets
 
 
