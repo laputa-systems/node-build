@@ -335,41 +335,55 @@ class InputsTest(unittest.TestCase):
 
 
 class RecipesTest(unittest.TestCase):
-    def test_macos_recipe_valid(self):
-        recipes.validate_recipe(recipes.macos_recipe())
-
-    def test_linux_recipe_valid(self):
-        recipe = recipes.linux_recipe()
-        recipes.validate_recipe(recipe)
-        self.assertIn("--dest-os=linux", recipe["configure"])
-        self.assertIn("--dest-cpu=x64", recipe["configure"])
-
-    def test_recipe_for_triple_dispatch(self):
-        self.assertEqual(
-            recipes.recipe_for_triple("aarch64-apple-darwin")["deployment_target"], "26.0"
+    def test_native_recipes_preserve_release_baselines(self):
+        cases = (
+            ("aarch64-apple-darwin", "mac", "arm64", "-mcpu=apple-m1", "26.0"),
+            ("x86_64-unknown-linux-musl", "linux", "x64", "-march=x86-64-v2", "1.2.6"),
         )
-        self.assertEqual(
-            recipes.recipe_for_triple("x86_64-unknown-linux-musl")["deployment_target"], "1.2.6"
-        )
+        for triple, os_name, cpu, cflag, deployment in cases:
+            with self.subTest(triple=triple):
+                recipe = recipes.recipe_for_triple(triple)
+                self.assertEqual(recipe["cflags"], [cflag])
+                self.assertEqual(recipe["optimization"], "-O3")
+                self.assertEqual(recipe["deployment_target"], deployment)
+                self.assertEqual(
+                    recipes.configure_command("/tmp/nowhere", recipe),
+                    [
+                        "./configure",
+                        f"--dest-os={os_name}",
+                        f"--dest-cpu={cpu}",
+                        "--without-npm",
+                        "--with-intl=small-icu",
+                    ],
+                )
+
+    def test_unknown_target_reports_the_triple(self):
+        with self.assertRaisesRegex(recipes.BannedFlagError, "no recipe for target: aarch64-unknown-linux-musl"):
+            recipes.recipe_for_triple("aarch64-unknown-linux-musl")
 
     def test_banned_flags_rejected(self):
         for banned in ("-march=native", "-ffast-math", "--fully-static", "--enable-thin-lto"):
-            bad = recipes.macos_recipe()
-            bad["cflags"] = [banned]
-            with self.assertRaises(recipes.BannedFlagError):
-                recipes.validate_recipe(bad)
+            with self.subTest(flag=banned):
+                bad = recipes.macos_recipe()
+                bad["cflags"] = [banned]
+                with self.assertRaisesRegex(recipes.BannedFlagError, f"banned flag: {banned}"):
+                    recipes.validate_recipe(bad)
+
+    def test_incomplete_recipe_reports_the_missing_field(self):
+        for field in ("configure", "cflags", "optimization", "deployment_target"):
+            with self.subTest(field=field):
+                bad = recipes.macos_recipe()
+                del bad[field]
+                with self.assertRaisesRegex(recipes.BannedFlagError, f"missing required key: {field}"):
+                    recipes.validate_recipe(bad)
 
     def test_missing_required_arg_rejected(self):
-        bad = recipes.macos_recipe()
-        bad["configure"] = ["--dest-os=mac"]
-        with self.assertRaises(recipes.BannedFlagError):
-            recipes.validate_recipe(bad)
-
-    def test_configure_command_shape(self):
-        command = recipes.configure_command("/tmp/nowhere", recipes.macos_recipe())
-        self.assertEqual(command[0], "./configure")
-        self.assertIn("--without-npm", command)
-        self.assertIn("--with-intl=small-icu", command)
+        for flag in ("--without-npm", "--with-intl=small-icu"):
+            with self.subTest(flag=flag):
+                bad = recipes.macos_recipe()
+                bad["configure"].remove(flag)
+                with self.assertRaisesRegex(recipes.BannedFlagError, f"missing required configure argument: {flag}"):
+                    recipes.validate_recipe(bad)
 
 
 class PatchTest(unittest.TestCase):

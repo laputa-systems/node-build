@@ -631,6 +631,37 @@ proof revision. Its native jobs recorded both maps and all spans.
 [Repeat-run cases](https://github.com/laputa-systems/node-build/pull/59)
 · [Native comparison results](https://github.com/laputa-systems/node-build/actions/runs/44437652960)
 
+
+### Whole-change control and release recipes
+
+The draft whole-change workflow qualified its planner and six controller
+modules on Linux and macOS at `2a7e33877d7fdf151bc0de486e3d1138de05e249`.
+All 12 shards passed. The verifier checks regular result files, source
+digests and the rendered bodies of dispositioned mutations. Its test
+deletion control changes a production target expression and removes the
+release Git deadline test. Ordinary CI and lint passed. The other ten
+mutation shards passed. The release shard reopened Git query variants
+5, 11, 17 and 19 on Linux, and also 14 on macOS. Reproduce by checking out
+the exact control revisions and running the draft workflow's matching
+platform jobs. The whole-change lane still needs the remaining critical
+modules in DSLP-4.
+[Draft and controls](https://github.com/laputa-systems/node-build/pull/61) ·
+[Positive run](https://github.com/laputa-systems/node-build/actions/runs/44442512453) ·
+[Deletion run](https://github.com/laputa-systems/node-build/actions/runs/44443467063)
+
+Both native target recipes now check the complete configure command,
+CPU baseline flag, optimization and minimum platform. The focused
+validation cases also check rejection of an unsupported target and the
+diagnostics for missing fields, missing flags and banned flags.
+Using the existing release mutation recipe on a fresh source archive
+with mutmut 3.8.1, pytest 9.2.0 and CPython 3.15.2, select
+`buildsys.product.*` and `buildsys.recipes.*` with `ProductTest`,
+`RecipesTest`, `tests/test_release.py` and `tests/test_product.py`.
+Both local arms have identical spans. Product caught all 25 identities.
+Recipes went from 66 of 80 to all 80. The local full suite's only
+failure is the recorded Xcode and SDK mismatch. Native CI uses the
+locked host tools.
+
 ## Tickets
 
 
