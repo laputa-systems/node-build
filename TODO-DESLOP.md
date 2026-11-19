@@ -719,6 +719,39 @@ excluding `test_lock_matches_host` from the mutation subprocess. The
 ordinary controller still checks the real host where the locked native
 toolchain is present. Both new checks and both linters passed.
 
+### Installed product inspection
+
+Real-format ELF and Mach-O fixtures now check the staged installation.
+The ELF case verifies required headers, the license, excluded tools
+and the distinct results for embedded staging and source paths. The
+Mach-O cases check architecture, target platform, minimum OS, PIE,
+signature results and a relative library lookup. The installed-artifact
+jobs above still exercise native signing and actual binary execution.
+
+With the same 516 identities and spans, the earlier controller census
+caught 156 and reported 118 unexercised identities. The new fixtures
+exercise all 516 and catch 340. Run `buildsys.validate_product.*`
+with the release archive recipe and `tests/test_product.py`,
+`tests/test_elf.py` and `tests/test_release.py`. The 176 survivors
+remain in DSLP-4. The new checks and both linters passed.
+
+### Relocation receipts
+
+The relocation tests execute the copied program from ordinary paths
+and paths with spaces. They verify materialization of a relative
+settings link, preservation of an existing destination, embedded path
+diagnostics, failed process output and both timeouts.
+
+The matched current selection catches 104 of 111 identities. The
+earlier selection caught two and marked 101 unexercised. Variants 4
+and 7 of `copy_tree` preserve the symlink copy default. Variants 7
+and 12 of `run_version` preserve subprocess error-checking behavior.
+Variants 6 and 8 of `verify_relocation` uppercase an installed path
+and need the case-sensitive Linux check. Variant 80 changes only the
+diagnostic length. Run `buildsys.relocate.*` with
+`tests/test_product.py::RelocateTest` and the release archive recipe.
+All five focused tests and both linters passed.
+
 ## Tickets
 
 
