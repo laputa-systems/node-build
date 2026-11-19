@@ -662,6 +662,28 @@ Recipes went from 66 of 80 to all 80. The local full suite's only
 failure is the recorded Xcode and SDK mismatch. Native CI uses the
 locked host tools.
 
+### Qualification receipt
+
+A real release-layout archive now exercises the qualification command
+with fixtures at the native product inspection, smoke and relocation
+boundaries. The fixtures check stale-work removal, the extracted binary,
+archive digest, all three groups of findings, and a persisted failure
+record before admission is refused. The rejected cases include missing
+archives, absent binaries and concurrent findings from the three
+checks. Qualification now leaves creation of the extraction destination
+to its existing archive reader.
+
+The selected qualification runner originally reported no tests
+for all 195 identities. With the redundant creation removed and the
+new fixture, the macOS selection caught 180 of the current 189.
+Variants 36, 38 and 172 change path case and need the native Linux check.
+Variants 65–70 change defaults of the smoke directory creation.
+The archive reader already created the parent and the current
+qualification has removed the previous work tree. Reproduce the local
+selection with the release archive recipe, selecting
+`buildsys.qualify_runner.*` and
+`tests/test_product.py::QualificationReceiptTest`.
+
 ## Tickets
 
 
