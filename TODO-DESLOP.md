@@ -846,6 +846,20 @@ a mixed assembly list, with valid build and reproduction controls
 for stdout and argument forwarding. All 51 focused tests and lint
 passed.
 
+
+The expanded CLI cases verify success and error streams for fetch,
+package, qualification, assembly, published smoke, comparison and
+budget checks. They also verify the default assembly set and the
+controller test command's discovery and result status.
+
+Across the same 381 identities at `44558734`, the matched controller
+scope moves from 164 to 285 caught. The broader run retains 95
+survivors and one timeout. The timed-out `main` variant 20
+routes ordinary commands into controller discovery. Selecting
+`tests/test_cli.py::ControllerTestCommandContract` alone caught
+the same variant. The broader timeout remains distinct from
+the test catches. All six CLI tests and lint passed.
+
 ## Tickets
 
 
