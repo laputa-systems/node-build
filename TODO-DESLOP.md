@@ -466,6 +466,31 @@ reader validates the full metadata and span sets. The job logs retain
 both compressed sidecars and the named survivors.
 [Native census](https://github.com/laputa-systems/node-build/actions/runs/44428020350)
 
+The package installer now closes its output pipe before returning.
+A real fixture child reproduced an open pipe after a successful
+installation, a nonzero exit and a clean exit without an install
+tree. The test checks the actual child exit, both output streams,
+the staged bytes and preservation of a sibling stage file. The
+process context owns pipe closure and reaps the child. Each of the
+three cases now passes.
+
+The hardening report fixture uses the existing synthetic ELF and
+Mach-O files and exercises both report writers. It verifies relative
+image paths, the declared target and a recorded hardening result
+against the persisted document. It supplies the unsigned result
+at the native signature-check boundary so the same fixture works on
+Linux and macOS. The prior native artifact checks cover `codesign`.
+All 36 release cases and both linters passed.
+
+The first hosted package census found 113 no-test outcomes in the
+two functions. The new local full-module census used Python 3.15.2,
+mutmut 3.8.1 and pytest 9.2.0. It caught 217 of 309 identities
+with all identities exercised. The installer implementation and
+host differ between the runs. Reproduce with the preceding archive
+recipe, changing the source to `buildsys/package.py`, selecting
+`tests/test_release.py` and `tests/test_product.py`, and running
+`buildsys.package.*`. DSLP-4 retains the 92 package survivors.
+
 ## Tickets
 
 

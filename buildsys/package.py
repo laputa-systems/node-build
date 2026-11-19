@@ -29,13 +29,15 @@ def install_to_stage(source: Path, stage: Path, recipe: dict) -> Path:
         shutil.rmtree(install_root)
     stage.mkdir(parents=True, exist_ok=True)
     log_path = stage / "install.log"
-    with open(log_path, "w", encoding="utf-8") as log:
-        process = subprocess.Popen(
+    with (
+        open(log_path, "w", encoding="utf-8") as log,
+        subprocess.Popen(
             [sys.executable, "tools/install.py", "install",
              "--dest-dir", str(stage), "--prefix", "/node"],
             cwd=source, env=node_configure_env(recipe),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
+        ) as process,
+    ):
         assert process.stdout is not None
         log.writelines(process.stdout)
         if process.wait() != 0:

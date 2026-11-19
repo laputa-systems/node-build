@@ -15,12 +15,14 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from buildlib import hashing, release
+from buildlib import hashing, macho, release
 
 import build
-from buildsys import package, product, targets, validate_product
+from buildsys import package, product, recipes, targets, validate_product
 from buildsys import release as release_assembler
 from buildsys import reproduce as reproduce_runner
+from tests.test_elf import build_image
+from tests.test_product import build_version_command, make_macho
 
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
 TRIPLE = "aarch64-apple-darwin"
@@ -108,6 +110,95 @@ class ReleaseInputTest(unittest.TestCase):
         with self.assertRaisesRegex(release_assembler.AssemblyError, "git status failed"):
             release_assembler.git_dirty(checkout)
         self.assertIsNone(release_assembler.clean_build_revision(checkout))
+
+
+class PackageStageTest(unittest.TestCase):
+    def setUp(self):
+        tmp_root = REPO_ROOT / ".work" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        self.scratch = tempfile.TemporaryDirectory(dir=tmp_root)
+        self.addCleanup(self.scratch.cleanup)
+        self.root = Path(self.scratch.name)
+
+    def test_installer_replaces_old_tree_and_records_child_output(self):
+        source = self.root / "source"
+        (source / "tools").mkdir(parents=True)
+        (source / "tools" / "install.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "command, dest_option, dest, prefix_option, prefix = sys.argv[1:]\n"
+            "assert (command, dest_option, prefix_option, prefix) == "
+            "('install', '--dest-dir', '--prefix', '/node')\n"
+            "mode = Path('install-mode').read_text()\n"
+            "print('installer stdout: ' + mode)\n"
+            "print('installer stderr: ' + mode, file=sys.stderr)\n"
+            "if mode != 'missing':\n"
+            "    bin_dir = Path(dest) / prefix.lstrip('/') / 'bin'\n"
+            "    bin_dir.mkdir(parents=True)\n"
+            "    (bin_dir / 'node').write_bytes(b'fixture node')\n"
+            "if mode == 'failure':\n"
+            "    sys.exit(7)\n",
+            encoding="utf-8",
+        )
+        recipe = recipes.recipe_for_triple(TRIPLE)
+        stage = self.root / "stage with spaces"
+        installed = stage / "node"
+        installed.mkdir(parents=True)
+        old_file = installed / "previous-install"
+        old_file.write_text("obsolete", encoding="utf-8")
+        (stage / "stage-marker").write_text("keep", encoding="utf-8")
+
+        spawn = subprocess.Popen
+        children = []
+
+        def start_child(*args, **kwargs):
+            child = spawn(*args, **kwargs)
+            children.append(child)
+            return child
+
+        for mode, message in (("complete", None), ("failure", "install failed"), ("missing", "install produced no tree")):
+            with self.subTest(mode=mode), patch.object(package.subprocess, "Popen", side_effect=start_child):
+                (source / "install-mode").write_text(mode, encoding="utf-8")
+                if message is None:
+                    self.assertEqual(package.install_to_stage(source, stage, recipe), installed)
+                    self.assertEqual((installed / "bin" / "node").read_bytes(), b"fixture node")
+                else:
+                    with self.assertRaisesRegex(package.PackageError, message):
+                        package.install_to_stage(source, stage, recipe)
+                self.assertFalse(old_file.exists())
+                self.assertEqual((stage / "stage-marker").read_text(encoding="utf-8"), "keep")
+                output = (stage / "install.log").read_text(encoding="utf-8").splitlines()
+                self.assertCountEqual(output, [f"installer stdout: {mode}", f"installer stderr: {mode}"])
+                child = children.pop()
+                self.assertEqual(child.returncode, 7 if mode == "failure" else 0)
+                assert child.stdout is not None
+                self.assertTrue(child.stdout.closed)
+
+    def test_hardening_report_persists_native_image_findings(self):
+        cases = (
+            ("x86_64", "1.2.6", build_image(), "elf-hardening", True),
+            ("arm64", "26.0", make_macho([build_version_command()], flags=0), "macho-non-pie", False),
+        )
+        for machine, target, image, finding, expected in cases:
+            with self.subTest(machine=machine):
+                stage = self.root / machine
+                (stage / "bin").mkdir(parents=True)
+                (stage / "bin" / "node").write_bytes(image)
+                (stage / "LICENSE").write_text("fixture license", encoding="utf-8")
+                destination = self.root / f"{machine}.json"
+                with patch.object(macho, "signature_status", return_value=(False, "fixture unsigned")) as signature:
+                    report = package.write_hardening_report(stage, machine, target, destination)
+                self.assertEqual(json.loads(destination.read_text(encoding="utf-8")), report)
+                self.assertEqual(set(report["images"]), {"bin/node"})
+                self.assertEqual(report["images"]["bin/node"]["arch"], machine)
+                self.assertEqual(report["deployment_target"], target)
+                checks = {check["name"]: check["ok"] for check in report["checks"]}
+                self.assertIs(checks[finding], expected)
+                if machine == "arm64":
+                    signature.assert_called_once_with(stage.resolve() / "bin" / "node")
+                    self.assertIs(checks["macho-signatures"], False)
+                else:
+                    signature.assert_not_called()
 
 
 class PackageRecordTest(unittest.TestCase):
