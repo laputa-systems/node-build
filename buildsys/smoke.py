@@ -85,6 +85,8 @@ def check_help_footer(node: Path, work: Path, fixtures: Path) -> str:
 
 def check_arch(node: Path, work: Path, fixtures: Path, triple: str = "aarch64-apple-darwin") -> str:
     completed = run_node(node, ["-p", "process.arch + '/' + process.platform"], work)
+    if completed.returncode != 0:
+        raise SmokeError(f"identity probe failed ({completed.returncode}): {completed.stderr.strip()}")
     identity = completed.stdout.strip()
     expected = EXPECTED_IDENTITY[triple]
     if identity != expected:
