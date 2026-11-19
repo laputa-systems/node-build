@@ -719,6 +719,22 @@ excluding `test_lock_matches_host` from the mutation subprocess. The
 ordinary controller still checks the real host where the locked native
 toolchain is present. Both new checks and both linters passed.
 
+### Installed product inspection
+
+Real-format ELF and Mach-O fixtures now check the staged installation.
+The ELF case verifies required headers, the license, excluded tools
+and the distinct results for embedded staging and source paths. The
+Mach-O cases check architecture, target platform, minimum OS, PIE,
+signature results and a relative library lookup. The installed-artifact
+jobs above still exercise native signing and actual binary execution.
+
+With the same 516 identities and spans, the earlier controller census
+caught 156 and reported 118 unexercised identities. The new fixtures
+exercise all 516 and catch 340. Run `buildsys.validate_product.*`
+with the release archive recipe and `tests/test_product.py`,
+`tests/test_elf.py` and `tests/test_release.py`. The 176 survivors
+remain in DSLP-4. The new checks and both linters passed.
+
 ## Tickets
 
 

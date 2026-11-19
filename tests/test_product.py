@@ -384,6 +384,80 @@ class RelocateTest(unittest.TestCase):
             source.rmdir()
 
 
+class InstalledProductTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp")
+        self.addCleanup(temp.cleanup)
+        self.install = Path(temp.name) / "node"
+        self.binary = self.install / "bin" / "node"
+        self.binary.parent.mkdir(parents=True)
+
+    def test_checks_linux_release_layout_and_distinguishes_embedded_paths(self):
+        headers = self.install / "include" / "node"
+        headers.mkdir(parents=True)
+        (headers / "node_api.h").write_bytes(b"node API")
+        (headers / "node.h").write_bytes(b"node headers")
+        (self.install / "LICENSE").write_bytes(b"license fixture")
+        source = b"/fixture/source/node"
+        stage = b"/fixture/stage/node"
+        base = build_image()
+        self.binary.write_bytes(base + source)
+        findings = validate_product.validate_install_tree(self.install, "x86_64", "1.2.6", [stage], [source])
+        self.assertEqual([finding.name for finding in findings if not finding.ok], [])
+        self.assertIn(validate_product.ProductFinding("info-source-refs", True, "1 upstream-inert config strings"), findings)
+        self.assertIn(validate_product.ProductFinding("no-stage-refs", True, "no stage path leaks"), findings)
+
+        (headers / "node_api.h").unlink()
+        (self.install / "LICENSE").unlink()
+        (self.binary.parent / "npm").write_bytes(b"unexpected tool")
+        self.binary.write_bytes(base + stage)
+        findings = validate_product.validate_install_tree(self.install, "x86_64", "1.2.6", [stage], [source])
+        self.assertEqual([finding for finding in findings if not finding.ok], [
+            validate_product.ProductFinding("layout-LICENSE", False, "missing"),
+            validate_product.ProductFinding("header-node_api.h", False, "missing"),
+            validate_product.ProductFinding("absent-bin/npm", False, "must not ship"),
+            validate_product.ProductFinding("no-stage-refs", False, f"stage prefixes: {[stage]}"),
+        ])
+        self.assertIn(validate_product.ProductFinding("info-source-refs", True, "none"), findings)
+
+    def test_classifies_macos_architecture_platform_minimum_and_signature(self):
+        self.binary.write_bytes(make_macho([build_version_command(), named_command(macho.LC_LOAD_DYLIB, "/usr/lib/libc++.1.dylib")]))
+        with patch.object(macho, "signature_status", return_value=(True, "fixture signature")):
+            findings = validate_product.macho_tree_checks(self.install, "arm64", "26.0")
+        self.assertEqual([finding for finding in findings if not finding.ok], [])
+
+        self.binary.write_bytes(make_macho(
+            [build_version_command(platform=2, minos=25 << 16)], cputype=macho.CPU_TYPE_X86_64, flags=0,
+        ))
+        with patch.object(macho, "signature_status", return_value=(False, "invalid fixture signature")):
+            failures = [finding for finding in validate_product.macho_tree_checks(self.install, "arm64", "26.0") if not finding.ok]
+        self.assertEqual(failures, [
+            validate_product.ProductFinding("macho-arch", False, "bin/node: x86_64"),
+            validate_product.ProductFinding("macho-platform", False, "bin/node: ios"),
+            validate_product.ProductFinding("macho-minos", False, "bin/node: expected 26.0, got 25.0"),
+            validate_product.ProductFinding("macho-signatures", False, "bin/node: invalid fixture signature"),
+            validate_product.ProductFinding("macho-non-pie", False, "bin/node"),
+        ])
+
+    def test_macos_runtime_search_resolves_a_sibling_library(self):
+        library = self.install / "lib" / "fixture.dylib"
+        library.parent.mkdir()
+        library.write_bytes(make_macho([build_version_command()], filetype=macho.MH_DYLIB))
+        self.binary.write_bytes(make_macho([
+            build_version_command(),
+            named_command(macho.LC_RPATH, "@loader_path/../lib"),
+            named_command(macho.LC_LOAD_DYLIB, "@rpath/fixture.dylib"),
+        ]))
+        with patch.object(macho, "signature_status", return_value=(True, "fixture signature")):
+            findings = validate_product.macho_tree_checks(self.install, "arm64", "26.0")
+            self.assertEqual([finding for finding in findings if not finding.ok], [])
+            library.unlink()
+            failed = [finding for finding in validate_product.macho_tree_checks(self.install, "arm64", "26.0") if not finding.ok]
+        self.assertEqual(failed, [
+            validate_product.ProductFinding("macho-unresolved-deps", False, "bin/node -> @rpath/fixture.dylib"),
+        ])
+
+
 class GateTest(unittest.TestCase):
     def test_gate_rejects_failure(self):
         findings = [validate_product.ProductFinding("x", False, "bad")]
