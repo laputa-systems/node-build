@@ -56,5 +56,4 @@ def target_for_triple(triple: str) -> Target:
 
 
 def native_target() -> Target:
-    host = shared.native_target()
-    return target_for_triple(host.triple)
+    return target_for_triple(shared.native_target().triple)
