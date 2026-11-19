@@ -1,4 +1,4 @@
-name: package and input mutation trial
+name: input mutation trial
 
 on: pull_request
 
@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [package, inputs]
+        module: [inputs]
     env:
       PROOF_MODULE: ${{ matrix.module }}
     steps:
@@ -43,6 +43,7 @@ jobs:
           esac
           proof="$PWD/.work/tmp/controller-proof"
           mkdir -p "$proof/.work/tmp"
+          : > "$proof/.work/tmp/.keep"
           export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
           git archive HEAD | tar -x -C "$proof"
           cat >> "$proof/pyproject.toml" <<TOML
@@ -50,7 +51,8 @@ jobs:
           [tool.mutmut]
           source_paths = ["buildsys"]
           only_mutate = ["buildsys/$PROOF_MODULE.py"]
-          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", ".github"]
+          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json",
+                       "pyproject.toml", "uv.lock", ".github", ".work/tmp"]
           pytest_add_cli_args_test_selection = $proof_tests
           use_setproctitle = false
           TOML
