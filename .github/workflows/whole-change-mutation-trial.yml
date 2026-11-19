@@ -72,6 +72,9 @@ jobs:
           source="buildsys/$MODULE.py"
           git ls-tree -r --full-tree HEAD | awk '$1 == "120000" || $1 == "160000" { exit 1 }'
           case "$MODULE" in
+            bootstrap) tests='["tests/test_controller.py::BootstrapTest::test_doctor_rejects_malformed_lock_sections_before_inspecting_host",
+                                "tests/test_controller.py::BootstrapTest::test_toolchain_probes_parse_native_command_output",
+                                "tests/test_controller.py::BootstrapTest::test_checks_report_both_matching_and_changed_toolchain_fields"]' ;;
             budgets) tests='["tests/test_controller.py::ArchiveBudgetTest"]' ;;
             comparison) tests='["tests/test_compare.py"]' ;;
             inputs) tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest", "tests/test_controller.py::BuildReceiptTest", "tests/test_release.py::PackageRecordTest"]' ;;

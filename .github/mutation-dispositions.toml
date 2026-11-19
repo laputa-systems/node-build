@@ -1,3 +1,8 @@
+[qualified.bootstrap]
+source_sha256 = "9d24f6a840aa6c746b9ac2bfabcb3c436bfa38e9acd247dc93ddd0eef14233b4"
+Linux = []
+Darwin = []
+
 [qualified.budgets]
 source_sha256 = "125f4b21f1c523d4244d56db1f6e4988ba95c22631ae3aaf091f302caa66931c"
 Linux = [
