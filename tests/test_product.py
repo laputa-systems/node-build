@@ -479,6 +479,18 @@ class InstalledProductTest(unittest.TestCase):
             validate_product.ProductFinding("macho-non-pie", False, "bin/node"),
         ])
 
+    def test_macos_requires_bin_node_to_be_the_executable_image(self):
+        helper = self.binary.with_name("helper")
+        helper.write_bytes(make_macho([build_version_command()]))
+        self.binary.write_bytes(make_macho([build_version_command()], filetype=macho.MH_DYLIB))
+        with patch.object(macho, "signature_status", return_value=(True, "fixture signature")):
+            wrong_kind = validate_product.macho_tree_checks(self.install, "arm64", "26.0")
+            self.assertEqual([finding for finding in wrong_kind if not finding.ok], [
+                validate_product.ProductFinding("macho-required-images", False, "missing executable: bin/node"),
+            ])
+            self.binary.write_bytes(make_macho([build_version_command()]))
+            validate_product.gate(validate_product.macho_tree_checks(self.install, "arm64", "26.0"))
+
     def test_macos_runtime_search_resolves_a_sibling_library(self):
         library = self.install / "lib" / "fixture.dylib"
         library.parent.mkdir()
