@@ -1,4 +1,4 @@
-name: release mutation trial
+name: package and input mutation trial
 
 on: pull_request
 
@@ -9,15 +9,17 @@ defaults:
     shell: bash -euo pipefail {0}
 
 jobs:
-  release-mutations:
-    runs-on: ${{ matrix.runner }}
+  controller-mutations:
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 20
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-26.04-arm, xcode-27]
+        module: [package, inputs]
+    env:
+      PROOF_MODULE: ${{ matrix.module }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -32,31 +34,36 @@ jobs:
         with:
           version: 0.13.7
       - run: uv python install 3.15.2
-      - name: Run and account for release mutations
+      - name: Run and account for controller mutations
         run: |
-          proof="$PWD/.work/tmp/release-proof"
+          case "$PROOF_MODULE" in
+            package) proof_tests='["tests/test_release.py", "tests/test_product.py"]' ;;
+            inputs) proof_tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest"]' ;;
+            *) exit 2 ;;
+          esac
+          proof="$PWD/.work/tmp/controller-proof"
           mkdir -p "$proof/.work/tmp"
           export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
           git archive HEAD | tar -x -C "$proof"
-          cat >> "$proof/pyproject.toml" <<'TOML'
+          cat >> "$proof/pyproject.toml" <<TOML
 
           [tool.mutmut]
           source_paths = ["buildsys"]
-          only_mutate = ["buildsys/release.py"]
+          only_mutate = ["buildsys/$PROOF_MODULE.py"]
           also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", ".github"]
-          pytest_add_cli_args_test_selection = ["tests/test_release.py"]
+          pytest_add_cli_args_test_selection = $proof_tests
           use_setproctitle = false
           TOML
           uv run --frozen --python 3.15.2 --with mutmut==3.8.1 --with pytest==9.2.0 bash -euc '
             cd "$1"
-            python -m mutmut run --max-children 1 "buildsys.release.*"
-          ' node-release-proof "$proof"
+            python -m mutmut run --max-children 1 "buildsys.$2.*"
+          ' node-controller-proof "$proof" "$PROOF_MODULE"
           for part in meta spans; do
             printf '%s ' "$part"
-            gzip -c "$proof/mutants/buildsys/release.py.$part" | base64 | tr -d '\n'
+            gzip -c "$proof/mutants/buildsys/$PROOF_MODULE.py.$part" | base64 | tr -d '\n'
             printf '\n'
           done
-          uv run --frozen --python 3.15.2 python - "$proof" "$PWD/.work/buildlib/scripts" <<'PY'
+          uv run --frozen --python 3.15.2 python - "$proof" "$PWD/.work/buildlib/scripts" "$PROOF_MODULE" <<'PY'
           import sys
           from collections import Counter
           from pathlib import Path
@@ -65,7 +72,8 @@ jobs:
           from mutants_gate import read_results
 
           files = Path(sys.argv[1]) / "mutants" / "buildsys"
-          results = read_results(files / "release.py.meta", files / "release.py.spans", "buildsys.release.")
+          module = sys.argv[3]
+          results = read_results(files / f"{module}.py.meta", files / f"{module}.py.spans", f"buildsys.{module}.")
           print("Outcome totals:", dict(sorted(Counter(results.values()).items())))
           for name, outcome in sorted(results.items()):
               if outcome != "killed":
