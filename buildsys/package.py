@@ -34,8 +34,8 @@ def install_to_stage(source: Path, stage: Path, recipe: dict) -> Path:
         subprocess.Popen(
             [sys.executable, "tools/install.py", "install",
              "--dest-dir", str(stage), "--prefix", "/node"],
-            cwd=source, env=node_configure_env(recipe),
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            cwd=source, env=node_configure_env(recipe) | {"PYTHONIOENCODING": "utf-8"},
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8",
         ) as process,
     ):
         assert process.stdout is not None
