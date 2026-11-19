@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -82,11 +82,15 @@ class ComparisonTest(unittest.TestCase):
     def test_version_timeout_reports_the_binary(self):
         error = subprocess.TimeoutExpired([str(self.reference), "--version"], 60)
         with (
-            patch.object(comparison.subprocess, "run", side_effect=error),
+            patch.object(comparison.subprocess, "run", side_effect=error) as run,
             self.assertRaises(comparison.CompareError) as failure,
         ):
             comparison.binary_version(self.reference, self.root)
         self.assertEqual(str(failure.exception), f"{self.reference} --version timed out")
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args, ([str(self.reference), "--version"],))
+        self.assertEqual(run.call_args.kwargs["cwd"], self.root)
+        self.assertEqual(run.call_args.kwargs["timeout"], 60)
 
     def test_version_probe_reports_a_nonzero_exit(self):
         self.reference.write_text("#!/bin/sh\nexit 7\n")
@@ -123,17 +127,32 @@ class ComparisonTest(unittest.TestCase):
         with (
             patch.object(benchmarks, "time_process", side_effect=[10.0, 5.0] * 5) as startup,
             patch.object(benchmarks, "time_probe", side_effect=[20.0, 30.0] * 5) as json_probe,
+            patch.object(comparison.platform, "machine", return_value="fixture-architecture"),
+            patch.object(comparison.platform, "processor", return_value="fixture-processor"),
         ):
             record = comparison.compare(self.root, self.triple, str(self.reference))
         expected_order = [self.reference, self.candidate] * 5
-        self.assertEqual([sample.args[0] for sample in startup.call_args_list], expected_order)
-        self.assertEqual([sample.args[0] for sample in json_probe.call_args_list], expected_order)
+        work = self.root / "build" / self.triple / "compare-work"
+        self.assertEqual(
+            startup.call_args_list,
+            [call(binary, ["-e", benchmarks.STARTUP_PROBE], work) for binary in expected_order],
+        )
+        self.assertEqual(
+            json_probe.call_args_list,
+            [call(binary, benchmarks.JSON_PROBE, work) for binary in expected_order],
+        )
+        self.assertEqual(set(record), {"node_version", "machine", "cpu", "toolchain", "probes", "limiter_note"})
         self.assertEqual(record["node_version"], "v26.12.1")
+        self.assertEqual(record["machine"], "fixture-architecture")
+        self.assertEqual(record["cpu"], "fixture-processor")
+        self.assertEqual(record["toolchain"], "as recorded in build-receipt.json")
+        self.assertIn("host-shared timing", record["limiter_note"])
+        self.assertIn("no-measurable-difference", record["limiter_note"])
         self.assertEqual(record["probes"], {
             "startup": {"reference_ms": [10.0] * 5, "candidate_ms": [5.0] * 5, "verdict": "faster"},
             "json": {"reference_ms": [20.0] * 5, "candidate_ms": [30.0] * 5, "verdict": "slower"},
         })
-        report = self.root / "build" / self.triple / "compare-work" / "compare-record.json"
+        report = work / "compare-record.json"
         self.assertEqual(json.loads(report.read_text()), record)
 
 
