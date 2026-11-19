@@ -38,7 +38,7 @@ jobs:
         run: |
           case "$PROOF_MODULE" in
             package) proof_tests='["tests/test_release.py", "tests/test_product.py"]' ;;
-            inputs) proof_tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest"]' ;;
+            inputs) proof_tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest", "tests/test_controller.py::BuildReceiptTest", "tests/test_release.py::PackageRecordTest"]' ;;
             *) exit 2 ;;
           esac
           proof="$PWD/.work/tmp/controller-proof"
