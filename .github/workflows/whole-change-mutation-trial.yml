@@ -77,7 +77,9 @@ jobs:
                                 "tests/test_controller.py::BootstrapTest::test_checks_report_both_matching_and_changed_toolchain_fields"]' ;;
             budgets) tests='["tests/test_controller.py::ArchiveBudgetTest"]' ;;
             comparison) tests='["tests/test_compare.py"]' ;;
+            elf_policy) tests='["tests/test_elf.py"]' ;;
             inputs) tests='["tests/test_controller.py::InputsTest", "tests/test_controller.py::ExtractedSourceTest", "tests/test_controller.py::BuildReceiptTest", "tests/test_release.py::PackageRecordTest"]' ;;
+            macho_paths) tests='["tests/test_product.py::MachOPathTest", "tests/test_product.py::InstalledProductTest"]' ;;
             package) tests='["tests/test_release.py", "tests/test_product.py"]' ;;
             product) tests='["tests/test_controller.py::ProductTest", "tests/test_release.py", "tests/test_product.py"]' ;;
             qualify_runner) tests='["tests/test_product.py::QualificationReceiptTest"]' ;;

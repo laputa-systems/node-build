@@ -40,6 +40,11 @@ Darwin = [
   "buildsys.comparison.x_compare__mutmut_72=95cbc5d71034ce758416d6184c6763b4f80a60223dfbb97396da1a189e23072e",
 ]
 
+[qualified.elf_policy]
+source_sha256 = "ec5d3d7e8b2b5a34d6a3e370c0874a2c28ec454fa51afd9a8c44bb504d8c8990"
+Linux = []
+Darwin = []
+
 [qualified.inputs]
 source_sha256 = "a54a9efe00f06dca67d8c6c4c9034741f8ed04bb90f8a1eff2bd3d90b6534f9f"
 Linux = [
@@ -61,6 +66,15 @@ Darwin = [
   "buildsys.inputs.x_safe_extract__mutmut_20=3d2bdf210b5a87e83ef69b510ddba71f8f25af19eb1d048a27cfef3d9d591f75",
   "buildsys.inputs.x_safe_extract__mutmut_22=5a02cef747f190fb69d4732c0a5b71f5c313d2c50575b0f9ba92a429a1984193",
   "buildsys.inputs.x_safe_extract__mutmut_24=0b34a2434485bdc03f6023920bc27da8b6b042bb7cc18af99aa6a271f57cea89",
+]
+
+[qualified.macho_paths]
+source_sha256 = "f92957d5a8ff735b9f3819937aabfcb3d9b0f9684a7250735eaeddee06a5dfe5"
+Linux = [
+  "buildsys.macho_paths.x_rpath_directories__mutmut_22=b8dc7d952d1cf30c9944c6759fbea87a67362767f40f6d86e6947562af3738f6",
+]
+Darwin = [
+  "buildsys.macho_paths.x_rpath_directories__mutmut_22=b8dc7d952d1cf30c9944c6759fbea87a67362767f40f6d86e6947562af3738f6",
 ]
 
 [qualified.package]
