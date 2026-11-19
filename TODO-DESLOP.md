@@ -5,6 +5,8 @@ Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/mai
 
 ## Report
 
+Dead code (DSLP-5) is done at base `043c8cff201b67516d048ab0e0ed2d186890c5a6`. Ruff F401/F841 pass in `make lint`. Vulture 2.16 at 60% reported 17 names in `buildsys/` and `build.py`. Five were removed: `STAGED_BINDIR`, `STAGED_NODE`, `STAGED_INCLUDEDIR`, `STAGED_LIBDIR` and `LICENSE_NAME` in `buildsys/product.py`. Each had no reference in the repository, `.github/workflows`, the Makefile or tests, and `buildsys` is not imported outside this repository; the `dl` consumer reads archives, not this module. The other 12 are retained as discovery-only false positives: nine TypedDict fields and two `build_python` dataclass fields are serialized record and report fields, and `expected_release_assets` is the release-asset oracle used by controller and release tests. Vulture stays out of `make lint` because a whitelist would need more than five entries. The former single-target `assemble` wrapper was already removed by `f10806e`. Deptry 0.25.1 finds no dependency issues with `--package-module-name-map laputa-buildlib=buildlib`; without it, it misreads the import name. After the removal, the locked environment ran 174 tests with only the recorded host Xcode/SDK lock mismatch failing, as on base, and Ruff and ty passed.
+
 Ground (DSLP-1) passed at base `c63d32672583e134ed705396ef9951e437546e31`. The pinned Alpine environment passed all 74 tests twice with Git installed for the release fixtures. Local macOS has Xcode 27.2 and SDK 27.2, while the lock expects Xcode 27.1 and SDK 27.0. [Verification](AGENTS.md#verification) records the command costs and coverage.
 
 Diagnose (DSLP-2) reviewed the first-party controller, artifact and provenance handoffs, docs, and sampled tests at `524ced8eda5ebbd7884d739a8cc5b58887d8ae75`. It filed two P2 findings, DSLP-6 and DSLP-7, with [sealed fixture reproductions](docs/DIAGNOSE.md). Pinned Alpine `make test` passed 74 tests including the musl host check; native `make lint` passed. The fixtures exercise local assembly. Native Node builds and the hosted release workflow remain separate checks.
@@ -121,14 +123,6 @@ for the controller fixtures or a new artifact qualification at this revision.
 
 
 
-### DSLP-5 · P2 · Dead code: tools and debloat
-
-- **Area:** deslop · dead code
-- **Where:** whole repository
-- **Problem:** No dead-code scan has run.
-- **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
-- **Fix with:** deslop
-- **Effort:** M
 
 
 

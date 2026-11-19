@@ -6,11 +6,6 @@ PRODUCT = "node"
 NODE_VERSION = "26.12.1"
 
 INSTALL_DIRNAME = "node"
-STAGED_BINDIR = "bin"
-STAGED_NODE = "bin/node"
-STAGED_INCLUDEDIR = "include/node"
-STAGED_LIBDIR = "lib"
-LICENSE_NAME = "LICENSE"
 
 RELEASE_DIRNAME = "release"
 
