@@ -142,6 +142,16 @@ Darwin = [
   "buildsys.release.x_validate_triple__mutmut_80=a18ce57d71f8d9b9bcde7ebbdce7f9be4b2006f70037b4860ac621ea35300583",
 ]
 
+[qualified.reproduce]
+source_sha256 = "d3ad4e6d70515bab88388d05d2a781539af67253d4782614b954b300efbb10e7"
+Linux = []
+Darwin = [
+  "buildsys.reproduce.x_reproduce__mutmut_132=30909819c30802e4124ecacabe90dd32aa7c013c60da051f418d24203555e95e",
+  "buildsys.reproduce.x_wipe_tree__mutmut_12=88ae299bb00536e2fd528dc79bc483fd3421867feeff14adb8bb46f5fd118fd2",
+  "buildsys.reproduce.x_wipe_tree__mutmut_5=bc3d2e0620c9b1fb03692566000e6886bac216fbaf3dd6bba555391d6af93251",
+  "buildsys.reproduce.x_wipe_tree__mutmut_7=e2ff17d446a4f06c230d97c477aeaf0f302bc93bfa3043ac98d8b6463a6cecbb",
+]
+
 [qualified.targets]
 source_sha256 = "da4744f30d0e4eb19e70b27a26b0115d362f35876648f7f76df9ae5f613ae377"
 Linux = [
