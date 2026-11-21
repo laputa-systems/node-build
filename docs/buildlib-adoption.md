@@ -4,7 +4,8 @@ node-build already depends on `laputa-buildlib` for lock reading, verified downl
 assets, hashing, and ELF/Mach-O inspection. This record covers the BLD-2 pilot: the audit of
 remaining local reimplementations, the vendored interpreter bootstrap, the code that changed, and
 the proof the plan's per-repository items require. Base revision:
-`b0d5061bee5cff947330e1a93d5ee8cb33e4aabd`.
+`b0d5061bee5cff947330e1a93d5ee8cb33e4aabd`; this record describes the lane at
+`48c150a8b2e8518e84cf2a2247143fc781e124b2`.
 
 ## 1. Bound the change
 
@@ -137,8 +138,8 @@ Both run `scripts/setup-dev` then `make lint test`, with per-step exit codes and
 
   | Capsule | interpreter branch | setup | lint | test | cold total |
   | --- | --- | --- | --- | --- | --- |
-  | `ubuntu:24.04` | uv fallback (musl 1.2.4) | 11s | <1s | 4s | 31s |
-  | `ubuntu:26.04` + musl | python-build (musl 1.2.5) | 9s | <1s | 5s | 30s |
+  | `ubuntu:24.04` | uv fallback (musl 1.2.4) | 9s | <1s | 4s | 29s |
+  | `ubuntu:26.04` + musl | python-build (musl 1.2.5) | 8s | <1s | 5s | 30s |
 
   Both ran 182 tests with 1 skipped (`test_lock_matches_host` skips on a non-musl
   Linux host; it is the macOS Xcode check that fails here) and ended with an empty
