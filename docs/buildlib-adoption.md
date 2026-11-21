@@ -30,12 +30,12 @@ Already on buildlib before this slice (no change, kept): `locks.load_sources`/`l
 
 The base README and docs told a newcomer to run `python3 build.py ...`. `buildsys/__init__.py`
 then tried to import `buildlib`; if it was absent it fetched the wheel with `urllib` and inserted
-it on `sys.path`. That required the *distribution's* `python3` to be new enough to parse the
-controllers at all (`build.py` and every `buildsys/*.py` use `X | None` annotations and
-`type` aliases). Ubuntu 24.04 ships Python 3.12, which cannot import `buildlib.release` (PEP 695
-`type JSONInput = ...`), and it ships no `uv` or `pip`. So the documented path failed before the
-wheel could help. The adoption path removes the host-Python dependency: the shim provisions a
-pinned CPython 3.15 and runs the wheel on it.
+it on `sys.path`. That path depends on the distribution providing `python3` at all: Ubuntu 24.04
+ships none, and the project declares `requires-python = ">=3.15"` in both `pyproject.toml` and
+buildlib's own metadata. A 3.12 interpreter happened to run the base suite here, but it is below
+the declared floor and is not a supported controller host. The adoption path removes the
+host-Python dependency: the shim provisions a pinned CPython 3.15 and runs the wheel on it, so a
+host with no Python, no `uv`, and no `pip` still runs the documented gates.
 
 ### Audit of remaining local code (not replaced)
 
@@ -133,9 +133,20 @@ Both run `scripts/setup-dev` then `make lint test`, with per-step exit codes and
 - Correctness gain: a fresh host no longer needs a distribution Python new enough to import the
   controllers; every interpreter and the wheel are SHA-256 pinned. The interpreter bootstrap and
   its trust paths are shared with other buildlib consumers instead of a second, weaker downloader.
-- Cold cost (container, native arm64, cold cache): recorded in the final proof with each step's
-  duration. Warm no-op: `make lint` reuses `.venv`; the shim reuses its cache directory and
-  verifies the pinned files without re-downloading.
+- Cold cost (container, native arm64, cold cache, from a clone of the lane commit):
+
+  | Capsule | interpreter branch | setup | lint | test | cold total |
+  | --- | --- | --- | --- | --- | --- |
+  | `ubuntu:24.04` | uv fallback (musl 1.2.4) | 11s | <1s | 4s | 31s |
+  | `ubuntu:26.04` + musl | python-build (musl 1.2.5) | 9s | <1s | 5s | 30s |
+
+  Both ran 182 tests with 1 skipped (`test_lock_matches_host` skips on a non-musl
+  Linux host; it is the macOS Xcode check that fails here) and ended with an empty
+  `git status --porcelain`. The times are capsule wall-clock for setup, lint, and
+  test only; they are operational cost, not a performance benchmark.
+- Warm cost: `sh bootstrap/buildlib-run -- -c pass` is ~0.13s once the cache is
+  populated (it re-hashes the pinned wheel, no download); `make lint` is ~3.4s
+  with the existing `.venv`; `build.py controller-test` is unchanged in shape.
 
 ## Repin procedure
 
