@@ -8,12 +8,14 @@ SHA-256 and size; downloaded bytes are verified before use.
 Run the locked chain for either triple (`doctor` refuses a toolchain that
 does not match `bootstrap.lock.json`; `fetch` verifies downloaded bytes
 against `sources.lock.json` before caching; compilation uses only verified
-cached inputs, no network):
+cached inputs, no network). The controller runs through the vendored buildlib
+bootstrap, which supplies a pinned Python 3.15 and the pinned wheel, so no
+distribution Python is required (see [DEVELOPMENT.md](DEVELOPMENT.md)):
 
 ```sh
-python3 build.py doctor --target <triple>
-python3 build.py fetch --target <triple>
-python3 build.py build --target <triple>
+sh bootstrap/buildlib-run -- build.py doctor --target <triple>
+sh bootstrap/buildlib-run -- build.py fetch --target <triple>
+sh bootstrap/buildlib-run -- build.py build --target <triple>
 ```
 
 ## Reference revisions consulted
@@ -45,7 +47,7 @@ reconfiguration through the recipe fingerprint.
 ## Independent reproduction
 
 ```sh
-python3 build.py reproduce --target <triple>
+sh bootstrap/buildlib-run -- build.py reproduce --target <triple>
 ```
 
 Builds twice from clean trees and compares raw and normalized bytes (macOS:
