@@ -4,8 +4,9 @@ node-build already depends on `laputa-buildlib` for lock reading, verified downl
 assets, hashing, and ELF/Mach-O inspection. This record covers the BLD-2 pilot: the audit of
 remaining local reimplementations, the vendored interpreter bootstrap, the code that changed, and
 the proof the plan's per-repository items require. Base revision:
-`b0d5061bee5cff947330e1a93d5ee8cb33e4aabd`; this record describes the lane at
-`48c150a8b2e8518e84cf2a2247143fc781e124b2`.
+`b0d5061bee5cff947330e1a93d5ee8cb33e4aabd`. The cold capsules and local gates
+below ran from the lane tip (`git log -1` on `bld/pilot-buildlib`); later commits
+to this file are documentation only.
 
 ## 1. Bound the change
 
