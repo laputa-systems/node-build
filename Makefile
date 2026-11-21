@@ -1,8 +1,9 @@
-PYTHON ?= python3
+PYTHON ?= sh bootstrap/buildlib-run --
 TARGET ?= aarch64-apple-darwin
 JOBS ?= 10
+BOOTSTRAP ?= bootstrap/buildlib-run
 
-.PHONY: test coverage build verify package repro controller-test fetch doctor clean lint
+.PHONY: test coverage build verify package repro controller-test fetch doctor clean lint setup bench bench-check bench-list
 
 fetch:
 	$(PYTHON) build.py fetch --target $(TARGET)
@@ -27,23 +28,22 @@ repro:
 controller-test:
 	$(PYTHON) build.py controller-test
 
+setup:
+	sh scripts/setup-dev
+
 clean:
 	rm -rf build dist .venv .ruff_cache .work/tmp
 	find . -path './.git' -prune -o -path './.work' -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
 
-coverage:
-	mkdir -p .work/coverage
-	uv run --frozen coverage run build.py controller-test
-	uv run --frozen coverage report
-	uv run --frozen coverage json -o .work/coverage/report.json
-
+# Ruff and ty are pinned development tools from uv.lock, not controller runtime
+# dependencies; `make setup` installs them once. The controller itself runs through
+# the vendored buildlib bootstrap so no distribution Python is required.
 lint:
 	uv run --frozen ruff check build.py buildsys tests
 	uv run --frozen ty check build.py buildsys tests
 
 test: controller-test
 
-.PHONY: bench bench-check bench-list
 bench:
 	$(PYTHON) -m buildsys.bench run $(BENCH_ARGS)
 
