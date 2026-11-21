@@ -18,7 +18,6 @@ from buildlib import locks
 from buildlib import targets as host_targets
 
 import build
-import buildsys
 from buildsys import bootstrap, budgets, inputs, node, product, recipes, targets
 
 
@@ -237,71 +236,36 @@ class InputsTest(unittest.TestCase):
         uv_lock = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
         self.assertIn(f'{{ url = "{pinned.url}", hash = "sha256:{pinned.sha256}" }}', uv_lock)
 
-    def test_cached_wheel_is_used_without_network(self):
-        data = b"wheel bytes"
-        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
-            root = Path(scratch)
-            entry = {
-                "name": "laputa-buildlib",
-                "url": "https://invalid.example/laputa_buildlib-0-py3-none-any.whl",
-                "sha256": hashlib.sha256(data).hexdigest(),
-                "size": len(data),
-            }
-            (root / "sources.lock.json").write_text(
-                json.dumps({"schema_version": 1, "inputs": [entry]}), encoding="utf-8"
-            )
-            wheel = root / "build" / "cache" / "laputa_buildlib-0-py3-none-any.whl"
-            wheel.parent.mkdir(parents=True)
-            wheel.write_bytes(data)
-            self.assertEqual(buildsys._pinned_wheel(root), wheel)
+    def test_vendored_bootstrap_pins_the_same_wheel_as_the_source_lock(self):
+        pinned = locks.load_sources(REPO_ROOT / "sources.lock.json").get("laputa-buildlib")
+        wheel_lines = [
+            line.split()
+            for line in (REPO_ROOT / "bootstrap" / "python.lock").read_text(encoding="utf-8").splitlines()
+            if line.startswith("wheel ")
+        ]
+        self.assertEqual(len(wheel_lines), 1)
+        _, url, sha256 = wheel_lines[0]
+        self.assertEqual(url, pinned.url)
+        self.assertEqual(sha256, pinned.sha256)
 
-    def test_malformed_wheel_pin_is_rejected_before_cache_or_network(self):
-        data = b"x"
-        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
-            root = Path(scratch)
-            entry = {
-                "name": "laputa-buildlib",
-                "url": "https://invalid.example/wheel.whl",
-                "sha256": hashlib.sha256(data).hexdigest(),
-                "size": True,
-            }
-            (root / "sources.lock.json").write_text(
-                json.dumps({"schema_version": 1, "inputs": [entry]}), encoding="utf-8"
-            )
-            wheel = root / "build" / "cache" / "wheel.whl"
-            wheel.parent.mkdir(parents=True)
-            wheel.write_bytes(data)
-            with (
-                patch("urllib.request.urlopen", side_effect=AssertionError("network used")),
-                self.assertRaisesRegex(ValueError, "invalid laputa-buildlib pin"),
-            ):
-                buildsys._pinned_wheel(root)
-
-    def test_wheel_fallback_verifies_download_before_replacing_cache(self):
-        data = b"verified wheel"
-        with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
-            root = Path(scratch)
-            entry = {
-                "name": "laputa-buildlib",
-                "url": "https://invalid.example/wheel.whl",
-                "sha256": hashlib.sha256(data).hexdigest(),
-                "size": len(data),
-            }
-            (root / "sources.lock.json").write_text(
-                json.dumps({"schema_version": 1, "inputs": [entry]}), encoding="utf-8"
-            )
-            wheel = root / "build" / "cache" / "wheel.whl"
-            wheel.parent.mkdir(parents=True)
-            wheel.write_bytes(b"bad cache")
-            with (
-                patch("urllib.request.urlopen", return_value=io.BytesIO(b"bad download")),
-                self.assertRaisesRegex(RuntimeError, "bytes do not match"),
-            ):
-                buildsys._pinned_wheel(root)
-            self.assertEqual(wheel.read_bytes(), b"bad cache")
-            with patch("urllib.request.urlopen", return_value=io.BytesIO(data)):
-                self.assertEqual(buildsys._pinned_wheel(root), wheel)
-            self.assertEqual(wheel.read_bytes(), data)
+    def test_buildsys_refuses_to_import_without_the_pinned_wheel(self):
+        script = (
+            "import importlib.util, sys\n"
+            "real = importlib.util.find_spec\n"
+            "importlib.util.find_spec = lambda name: None if name == 'buildlib' else real(name)\n"
+            "sys.path.insert(0, sys.argv[1])\n"
+            "try:\n"
+            "    import buildsys\n"
+            "except ModuleNotFoundError as error:\n"
+            "    print(error)\n"
+            "    raise SystemExit(3)\n"
+            "raise SystemExit(0)\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script, str(REPO_ROOT)], capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 3, completed.stderr)
+        self.assertIn("sh bootstrap/buildlib-run --", completed.stdout)
 
     def test_safe_extract_rejects_escape(self):
         archive = REPO_ROOT / ".work" / "tmp" / "evil.tar"

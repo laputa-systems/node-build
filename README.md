@@ -34,3 +34,8 @@ Qualified archives only: native build plus loopback smoke suite, manifest
 validation, clean published-byte smoke, then a prerelease against the
 recorded source revision. The pipeline is defined in
 `docs/RELEASE.md`.
+
+## Develop
+
+`make setup` provisions the pinned interpreter and tools; `make lint test`
+runs the gates. See `docs/DEVELOPMENT.md`.

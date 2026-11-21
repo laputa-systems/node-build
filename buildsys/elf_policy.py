@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-EXPECTED_INTERP_X86_64 = "/lib/ld-musl-x86_64.so.1"
+from buildlib import targets
+
+EXPECTED_INTERP_X86_64 = targets.target_for_triple("x86_64-unknown-linux-musl").musl_loader
 
 ALLOWED_NEEDED = frozenset(
     {
