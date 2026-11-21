@@ -35,9 +35,8 @@ clean:
 	rm -rf build dist .venv .ruff_cache .work/tmp
 	find . -path './.git' -prune -o -path './.work' -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
 
-# Ruff and ty are pinned development tools from uv.lock, not controller runtime
-# dependencies; `make setup` installs them once. The controller itself runs through
-# the vendored buildlib bootstrap so no distribution Python is required.
+# Ruff and ty are development tools pinned in uv.lock (`make setup` installs
+# them); the controller runs through the vendored buildlib bootstrap.
 lint:
 	uv run --frozen ruff check build.py buildsys tests
 	uv run --frozen ty check build.py buildsys tests
