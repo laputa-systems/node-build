@@ -39,9 +39,16 @@ if [ "$(id -u)" -ne 0 ]; then
     as_root='sudo'
 fi
 
-packages='curl ca-certificates tar xz-utils git'
-if [ "$system" = Linux ] && [ "$os_id" = ubuntu ] && [ "$os_version" = 24.04 ]; then
-    note 'Ubuntu 24.04 ships musl 1.2.4; buildlib-run will take the uv interpreter branch'
+packages='curl ca-certificates tar xz-utils git make'
+if [ "$system" = Linux ]; then
+    case "$os_id:$os_version" in
+        ubuntu:24.04)
+            note 'Ubuntu 24.04 ships musl 1.2.4; buildlib-run will take the uv interpreter branch'
+            ;;
+        ubuntu:26.04|debian:13|debian:13.*)
+            packages="$packages musl"
+            ;;
+    esac
 fi
 if [ "$system" = Linux ]; then
     missing=''

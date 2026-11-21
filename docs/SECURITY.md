@@ -54,6 +54,7 @@ validator fails when it should.
 - Assembly checks the build receipt against the checkout revision and source lock,
   and checks the package and qualification records against the archive. The
   reproducibility command measures bit equality in two rebuilds.
-- Network access exists only in acquisition (`fetch`) and the one-time
-  download of the pinned `laputa-buildlib` wheel into `build/cache`;
+- Network access exists only in acquisition (`fetch`) and the interpreter
+  bootstrap (`bootstrap/buildlib-run` fetching its pinned CPython/uv archives and
+  the `laputa-buildlib` wheel, each verified by size and SHA-256 before use);
   compilation runs from verified cached inputs.
