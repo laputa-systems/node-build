@@ -1,5 +1,8 @@
 # node-build
 
+`make clean` removes the root build and release outputs and the Ruff cache.
+It preserves installed dependencies and unrelated scratch files.
+
 Independent build system for the locked Node.js 26.12.1 source. It produces
 relocatable, PIE-hardened installations for `aarch64-apple-darwin` and
 `x86_64-unknown-linux-musl`. Linux arm64 stays parked.

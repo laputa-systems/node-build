@@ -32,8 +32,12 @@ setup:
 	sh scripts/setup-dev
 
 clean:
-	rm -rf build dist .venv .ruff_cache .work/tmp
-	find . -path './.git' -prune -o -path './.work' -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
+	@for artifact in ./build ./dist ./.ruff_cache; do \
+	  if test -L "$$artifact" || { test -e "$$artifact" && ! test -d "$$artifact"; }; then \
+	    printf '%s\n' "make clean: $$artifact must be a local build directory" >&2; exit 1; \
+	  fi; \
+	done
+	rm -rf -- ./build ./dist ./.ruff_cache
 
 # Ruff and ty are development tools pinned in uv.lock (`make setup` installs
 # them); the controller runs through the vendored buildlib bootstrap.
