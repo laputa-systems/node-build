@@ -7,6 +7,8 @@ Independent build system for the locked Node.js 26.12.1 source. It produces
 relocatable, PIE-hardened installations for `aarch64-apple-darwin` and
 `x86_64-unknown-linux-musl`. Linux arm64 stays parked.
 
+The roadmap, [docs/roadmap.md](docs/roadmap.md), holds all current and future work; its Status is the resume point.
+
 ## Commands
 
 ```text
