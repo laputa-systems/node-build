@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -7,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from buildsys import smoke
+from buildsys import product, smoke
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -400,14 +401,14 @@ class CommandSmokeContract(unittest.TestCase):
         self.node.chmod(0o755)
         self.help = "Usage: node [options]\n" + smoke.OWNED_FOOTER + "\n"
         for name, body in (
-            ("version", "v26.12.1\n"), ("evaluate", '{"answer":42}\n'),
+            ("version", f"v{product.NODE_VERSION}\n"), ("evaluate", '{"answer":42}\n'),
             ("help.-h", self.help), ("help.--help", self.help), ("completion", "complete -F _node node\n"),
             ("addon-script", "const addon = require('./addon.node'); if (addon.answer() !== 42) { process.exit(1); } console.log('addon ok');"),
         ):
             (self.work / name).write_text(body, encoding="utf-8")
 
     def test_version_and_help_probe_statuses_and_contents(self):
-        self.assertEqual(smoke.check_version(self.node, self.work, self.work), "v26.12.1")
+        self.assertEqual(smoke.check_version(self.node, self.work, self.work), f"v{product.NODE_VERSION}")
         self.assertEqual(
             smoke.check_help_footer(self.node, self.work, self.work),
             "help footer, version, JSON and completion ok",
@@ -446,7 +447,7 @@ class CommandSmokeContract(unittest.TestCase):
                     path.unlink()
         version = self.work / "version"
         version.write_text("v26.12.0", encoding="utf-8")
-        with self.assertRaisesRegex(smoke.SmokeError, r"^version v26\.12\.0 != v26\.12\.1$"):
+        with self.assertRaisesRegex(smoke.SmokeError, rf"^version v26\.12\.0 != v{re.escape(product.NODE_VERSION)}$"):
             smoke.check_version(self.node, self.work, self.work)
         version.unlink()
         with self.assertRaisesRegex(smoke.SmokeError, "^--version failed: .*"):

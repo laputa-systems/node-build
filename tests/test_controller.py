@@ -214,7 +214,7 @@ class InputsTest(unittest.TestCase):
 
     def test_lock_schema_loads(self):
         entry = locks.load_sources(REPO_ROOT / "sources.lock.json").get("node")
-        self.assertEqual(entry.version, "26.12.1")
+        self.assertEqual(entry.version, product.NODE_VERSION)
         self.assertEqual(len(entry.sha256), 64)
 
     def test_lock_files_use_schema_version_one(self):

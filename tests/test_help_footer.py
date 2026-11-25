@@ -2,7 +2,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest import TestCase, mock
 
-from buildsys import smoke
+from buildsys import product, smoke
 
 
 class HelpFooterTest(TestCase):
@@ -11,7 +11,7 @@ class HelpFooterTest(TestCase):
             if args[0] in ("-h", "--help"):
                 output = "Usage: node\n\n" + smoke.OWNED_FOOTER + "\n"
             elif args[0] == "--version":
-                output = "v26.12.1\n"
+                output = f"v{product.NODE_VERSION}\n"
             elif args[0] == "-p":
                 output = '{"answer":42}\n'
             else:

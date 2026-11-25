@@ -3,7 +3,7 @@ from __future__ import annotations
 from buildlib import release
 
 PRODUCT = "node"
-NODE_VERSION = "26.12.1"
+NODE_VERSION = "26.13.1"
 
 INSTALL_DIRNAME = "node"
 
