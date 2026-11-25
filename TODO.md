@@ -1,7 +1,16 @@
 Prefix: NODE
-Next: 6
+Next: 7
 
 # Open work
+
+### NODE-6 · P2 · Native addons cannot load under the musl Linux build on glibc hosts
+
+- **Area:** Linux targets, compatibility
+- **Where:** the `*-unknown-linux-musl` release targets; consumers' napi-rs addons (rolldown, oxlint)
+- **Problem:** On a glibc host such as GitHub's Ubuntu runners, napi-rs loaders decide libc from the host (`/usr/bin/ldd`), pick the `*-linux-*-gnu` binding, and fail to load it into the musl node process (`Error loading shared library libgcc_s.so.1 ... rolldown-binding.linux-x64-gnu.node`). Installing both libc variants with pnpm does not help, because the loader never tries the musl binding. So vite, vitest and oxlint builds cannot use owned node on glibc runners (joshuarli/extensions#30 closed; reproduced for joshuarli/stats' statsctl build in ubuntu:24.04 with node 26.13.1 x86_64 musl). Packages that spawn a separate native executable, such as tsrs and esbuild, work.
+- **Recommendation:** Decide between publishing a glibc-loadable Linux build (a `*-linux-gnu` target built against an old glibc baseline) and documenting musl node as Alpine-only; then remove the stats and extensions exemptions in stuff's `fleet/policy/owned-substitutes.toml`.
+- **Fix with:** architect
+- **Effort:** L
 
 ### NODE-1 · P3 · Qualify remaining generic return and input shapes
 
