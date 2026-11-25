@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from buildsys import product
 from buildsys import targets as node_targets
 
 
@@ -46,8 +47,8 @@ def check_version(node: Path, work: Path, fixtures: Path) -> str:
     if completed.returncode != 0:
         raise SmokeError(f"--version failed: {completed.stderr}")
     version = completed.stdout.strip()
-    if version != "v26.12.1":
-        raise SmokeError(f"version {version} != v26.12.1")
+    if version != f"v{product.NODE_VERSION}":
+        raise SmokeError(f"version {version} != v{product.NODE_VERSION}")
     return version
 
 
@@ -73,7 +74,7 @@ def check_help_footer(node: Path, work: Path, fixtures: Path) -> str:
         outputs.append(result.stdout)
     if outputs[0] != outputs[1]:
         raise SmokeError("-h and --help differ")
-    for args, expected in ((["--version"], "v26.12.1\n"),
+    for args, expected in ((["--version"], f"v{product.NODE_VERSION}\n"),
                            (["-p", "JSON.stringify({answer:42})"], '{"answer":42}\n')):
         result = run_node(node, args, work)
         if result.returncode != 0 or result.stderr or result.stdout != expected:

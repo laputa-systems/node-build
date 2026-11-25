@@ -1,6 +1,6 @@
 # node-build
 
-Lean, relocatable Node.js 26.12.1 distributions: Apple Silicon macOS
+Lean, relocatable Node.js 26.13.1 distributions: Apple Silicon macOS
 (`aarch64-apple-darwin`) and Alpine musl x86_64 and arm64
 (`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`). Small ICU,
 no npm/npx, no Corepack.
@@ -13,7 +13,7 @@ prerelease). Each target has an archive, a manifest, and a shared `SHA256SUMS`.
 ## Run it
 
 ```sh
-tar -xJf node-26.12.1-<triple>.tar.xz
+tar -xJf node-26.13.1-<triple>.tar.xz
 PATH="$PWD/node/bin:$PATH" node --version
 ```
 
