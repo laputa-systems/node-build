@@ -805,7 +805,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("xcode-27", self.text)
         self.assertNotIn("macos-14", self.text)
         self.assertIn("RELEASE_TAG: release-${{ github.sha }}", self.text)
-        self.assertIn("python3 build.py assemble", self.text)
+        self.assertIn("sh bootstrap/buildlib-run -- build.py assemble", self.text)
+        self.assertNotIn("python3 build.py", self.text)
         self.assertIn("build.py published-smoke --target", self.text)
         self.assertIn("sha256sum -c SHA256SUMS", self.text)
         self.assertIn(
