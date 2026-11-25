@@ -205,9 +205,9 @@ jobs:
 
       - name: Smoke exact assembled bytes on macOS
         if: runner.os == 'macOS'
-        run: |
-          (cd dist/release && shasum -a 256 -c SHA256SUMS)
-          python3 build.py published-smoke --target "${{ matrix.target }}"
+        env:
+          TARGET: ${{ matrix.target }}
+        run: sh scripts/smoke-published-release "$TARGET"
 
       - name: Smoke exact assembled bytes in Alpine musl
         if: runner.os == 'Linux'

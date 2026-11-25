@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+target=${1:?usage: smoke-published-release TARGET}
+(cd dist/release && sha256sum -c SHA256SUMS)
+python3 build.py published-smoke --target "$target"
