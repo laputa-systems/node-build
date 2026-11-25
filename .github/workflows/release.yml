@@ -246,7 +246,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           mkdir -p .work/ubuntu-smoke
-          tar -xJf "dist/release/node-*-${TARGET}.tar.xz" -C .work/ubuntu-smoke
+          tar -xJf dist/release/node-*-"${TARGET}".tar.xz -C .work/ubuntu-smoke
           case "$TARGET" in
             x86_64-unknown-linux-musl) platform=linux/amd64 ;;
             aarch64-unknown-linux-musl) platform=linux/arm64 ;;
