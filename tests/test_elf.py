@@ -171,14 +171,14 @@ class ELFGateTest(unittest.TestCase):
 
         shutil.rmtree(REPO_ROOT / ".work" / "tmp" / "elf-tree", ignore_errors=True)
 
-    def check_names(self, **kwargs) -> dict[str, bool]:
+    def check_names(self, arch: str = "x86_64", **kwargs) -> dict[str, bool]:
         root = write_tree(**kwargs)
-        findings = validate_product.elf_tree_checks(root, "x86_64")
+        findings = validate_product.elf_tree_checks(root, arch)
         return {finding.name: finding.ok for finding in findings}
 
-    def hardening_detail(self, **kwargs) -> str:
+    def hardening_detail(self, arch: str = "x86_64", **kwargs) -> str:
         root = write_tree(**kwargs)
-        findings = validate_product.elf_tree_checks(root, "x86_64")
+        findings = validate_product.elf_tree_checks(root, arch)
         return next(finding.detail for finding in findings if finding.name == "elf-hardening")
 
     def test_good_tree_passes(self):
@@ -239,6 +239,24 @@ class ELFGateTest(unittest.TestCase):
         stack_flags = elf.PF_R | elf.PF_W | elf.PF_X
         self.assertFalse(self.check_names(stack_flags=stack_flags)["elf-hardening"])
         self.assertIn("executable stack", self.hardening_detail(stack_flags=stack_flags))
+
+    def test_aarch64_musl_tree_passes_with_its_own_libc(self):
+        results = self.check_names(
+            "aarch64",
+            machine=elf.EM_AARCH64,
+            interp="/lib/ld-musl-aarch64.so.1",
+            needed=("libc.musl-aarch64.so.1",),
+        )
+        self.assertTrue(all(results.values()), results)
+
+    def test_aarch64_node_rejects_the_x86_64_libc(self):
+        results = self.check_names(
+            "aarch64",
+            machine=elf.EM_AARCH64,
+            interp="/lib/ld-musl-aarch64.so.1",
+            needed=("libc.musl-x86_64.so.1",),
+        )
+        self.assertFalse(results["elf-node-deps"])
 
 
 if __name__ == "__main__":

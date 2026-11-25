@@ -222,10 +222,10 @@ class PackageStageTest(unittest.TestCase):
 
     def test_hardening_report_persists_native_image_findings(self):
         cases = (
-            ("x86_64", "1.2.6", build_image(), "elf-hardening", True),
-            ("arm64", "26.0", make_macho([build_version_command()], flags=0), "macho-non-pie", False),
+            ("x86_64", "1.2.6", "linux-musl", build_image(), "elf-hardening", True),
+            ("arm64", "26.0", "macos", make_macho([build_version_command()], flags=0), "macho-non-pie", False),
         )
-        for machine, target, image, finding, expected in cases:
+        for machine, target, family, image, finding, expected in cases:
             with self.subTest(machine=machine):
                 stage = self.root / machine
                 (stage / "bin").mkdir(parents=True)
@@ -233,7 +233,7 @@ class PackageStageTest(unittest.TestCase):
                 (stage / "LICENSE").write_text("fixture license", encoding="utf-8")
                 destination = self.root / f"{machine}.json"
                 with patch.object(macho, "signature_status", return_value=(False, "fixture unsigned")) as signature:
-                    report = package.write_hardening_report(stage, machine, target, destination)
+                    report = package.write_hardening_report(stage, machine, target, destination, family=family)
                 self.assertEqual(json.loads(destination.read_text(encoding="utf-8")), report)
                 self.assertEqual(set(report["images"]), {"bin/node"})
                 self.assertEqual(report["images"]["bin/node"]["arch"], machine)
@@ -315,7 +315,7 @@ class PackageRecordTest(unittest.TestCase):
             package.package(self.root, TRIPLE, self.source)
         self.assert_unpublished()
 
-        def change_receipt(*_args):
+        def change_receipt(*_args, **_kwargs):
             self.receipt.write_text(self.valid_receipt + "\n", encoding="utf-8")
             return [self.finding]
 
@@ -342,9 +342,9 @@ class PackageRecordTest(unittest.TestCase):
         self.install.assert_called_once_with(self.source, stage_dir, recipes.recipe_for_triple(TRIPLE))
         target = targets.target_for_triple(TRIPLE)
         self.report.assert_called_once_with(self.stage, target.machine, target.deployment_target,
-                                           stage_dir / "hardening-report.json")
+                                           stage_dir / "hardening-report.json", family=target.family)
         validate.assert_called_once_with(self.stage, target.machine, target.deployment_target,
-                                         [os.fsencode(stage_dir)], [os.fsencode(self.source)])
+                                         [os.fsencode(stage_dir)], [os.fsencode(self.source)], family=target.family)
         archive = self.root / "dist" / TRIPLE / product.archive_name(product.NODE_VERSION, TRIPLE)
         self.assertEqual(result, {
             "archive": str(archive),
@@ -802,6 +802,8 @@ class WorkflowTest(unittest.TestCase):
     def test_targets_and_release_gate_use_current_contract(self):
         self.assertIn("aarch64-apple-darwin", self.text)
         self.assertIn("x86_64-unknown-linux-musl", self.text)
+        self.assertIn("aarch64-unknown-linux-musl", self.text)
+        self.assertIn("ubuntu-26.04-arm", self.text)
         self.assertIn("xcode-27", self.text)
         self.assertNotIn("macos-14", self.text)
         self.assertIn("RELEASE_TAG: release-${{ github.sha }}", self.text)

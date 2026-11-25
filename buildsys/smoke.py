@@ -10,6 +10,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from buildsys import targets as node_targets
+
 
 class SmokeError(Exception):
     pass
@@ -28,6 +30,7 @@ INSPECTOR_ANNOUNCE_TIMEOUT = 30
 EXPECTED_IDENTITY = {
     "aarch64-apple-darwin": "arm64/darwin",
     "x86_64-unknown-linux-musl": "x64/linux",
+    "aarch64-unknown-linux-musl": "arm64/linux",
 }
 
 
@@ -381,7 +384,7 @@ def check_napi_addon(
     triple: str = "aarch64-apple-darwin",
 ) -> str:
     addon = work / "addon.node"
-    if triple == "x86_64-unknown-linux-musl":
+    if node_targets.target_for_triple(triple).is_linux:
         compile_command = [
             "g++", "-shared", "-fPIC",
             f"-I{headers}", str(fixtures / "smoke" / "addon.cc"), "-o", str(addon),

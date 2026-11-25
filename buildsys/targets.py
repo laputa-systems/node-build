@@ -31,25 +31,25 @@ LINUX_X64_MUSL = _extend(
     "x86_64-unknown-linux-musl", cpu_baseline_cflag="-march=x86-64-v2", deployment_target="1.2.6"
 )
 
+LINUX_ARM64_MUSL = _extend(
+    "aarch64-unknown-linux-musl", cpu_baseline_cflag="-march=armv8-a", deployment_target="1.2.6"
+)
+
 TARGETS: dict[str, Target] = {
     DARWIN_ARM64.triple: DARWIN_ARM64,
     LINUX_X64_MUSL.triple: LINUX_X64_MUSL,
+    LINUX_ARM64_MUSL.triple: LINUX_ARM64_MUSL,
 }
 
 SUPPORTED_TRIPLES = tuple(sorted(TARGETS))
 
-_PARKED_TRIPLES = ("aarch64-unknown-linux-musl",)
+_PARKED_TRIPLES: tuple[str, ...] = ()
 
 
 def target_for_triple(triple: str) -> Target:
     try:
         return TARGETS[triple]
     except KeyError:
-        if triple in _PARKED_TRIPLES:
-            raise UnsupportedTargetError(
-                f"target deferred, not implemented in this campaign: {triple} "
-                "(linux arm64 is parked; see plan Non-goals)"
-            ) from None
         raise UnsupportedTargetError(
             f"target not implemented: {triple} (supported: {SUPPORTED_TRIPLES})"
         ) from None

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from buildlib import elf, macho
+from buildlib import targets as shared_targets
 
 from buildsys import elf_policy, macho_paths
 
@@ -188,12 +189,12 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
             continue
         if header.arch != machine:
             buckets["elf-arch"].append(f"{name}: {header.arch}")
-        if (image in required or name == "bin/node") and interp != elf_policy.EXPECTED_INTERP_X86_64:
+        if (image in required or name == "bin/node") and interp != elf_policy.expected_interpreter(machine):
             buckets["elf-interp"].append(f"{name}: {interp}")
         for dependency in deps:
             if not elf_policy.allowed_dependency(dependency):
                 buckets["elf-deps"].append(f"{name} -> {dependency}")
-            if image in required and dependency != "libc.musl-x86_64.so.1":
+            if image in required and dependency != elf_policy.musl_libc(machine):
                 buckets["elf-node-deps"].append(f"{name} -> {dependency}")
         if rpaths:
             buckets["elf-rpaths"].append(f"{name}: {rpaths}")
@@ -223,14 +224,18 @@ def validate_install_tree(
     deployment_target: str,
     stage_prefixes: list[bytes],
     source_prefixes: list[bytes],
+    *,
+    family: str,
 ) -> list[ProductFinding]:
     from buildsys import relocate
 
     findings = validate_layout(install_root)
-    if machine == "x86_64":
+    if family == shared_targets.LINUX_MUSL:
         findings += elf_tree_checks(install_root, machine)
-    else:
+    elif family == shared_targets.MACOS:
         findings += macho_tree_checks(install_root, machine, deployment_target)
+    else:
+        raise GateError(f"unknown product family: {family}")
     node = install_root / "bin" / "node"
     stage_hits = relocate.scan_forbidden_refs(node, stage_prefixes)
     findings.append(

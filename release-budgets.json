@@ -18,6 +18,15 @@
       "measured_installed_payload_bytes": 182331192,
       "measured_sha256": "3e40d12063b2e8904da2cec2a198faafc616241d7df47cc4e2faf125ada0950b",
       "rationale": "Measured from release-934b31ca, the first shared-format xz release, with 15% headroom. The single musl PIE binary plus headers and LICENSE dominate the payload; headroom covers minor upstream size drift without hiding a linking regression."
+    },
+    "aarch64-unknown-linux-musl": {
+      "compressed_max_bytes": 33000000,
+      "installed_payload_max_bytes": 210000000,
+      "measured_artifact": "node-26.12.1-aarch64-unknown-linux-musl.tar.xz",
+      "measured_compressed_bytes": 0,
+      "measured_installed_payload_bytes": 0,
+      "measured_sha256": "",
+      "rationale": "Placeholder pending the first qualified aarch64 musl archive; ceilings mirror the x86_64 musl budget until measured values are recorded."
     }
   }
 }

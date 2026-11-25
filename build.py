@@ -50,14 +50,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"musl: {identity.musl_version}")
         print(f"kernel: {identity.kernel_release}")
         print(f"host: {identity.host_machine} {identity.host_system}")
-        findings = bootstrap.check_linux_toolchain(lock, identity)
-        findings += bootstrap.check_linux_baseline(lock)
+        findings = bootstrap.check_linux_toolchain(lock, identity, wanted.machine)
+        findings += bootstrap.check_linux_baseline(lock, wanted)
         failed = [finding for finding in findings if not finding.ok]
         for finding in findings:
             print(f"[{'ok' if finding.ok else 'MISMATCH'}] {finding.name}: {finding.detail}")
         if failed:
             return _fail("toolchain does not match bootstrap.lock.json")
-        recipe_mod.validate_recipe(recipe_mod.linux_recipe())
+        recipe_mod.validate_recipe(recipe_mod.recipe_for_triple(wanted.triple))
         print("[ok] recipe: required flags present, no banned flags")
         return 0
     try:

@@ -22,12 +22,12 @@ built-in SQLite.
 
 ## Runtime requirements
 
-macOS 26+ on arm64; Linux x86_64 with musl 1.2.5 or later. The macOS binary links
+macOS 26+ on arm64; Linux x86_64 or arm64 with musl 1.2.5 or later. The macOS binary links
 only system libraries (`/usr/lib/`, `/System/Library/`); the Linux binary
 needs only the musl libc shared library. The Linux product gate rejects other
 dynamic dependencies for `bin/node`.
 
 ## Unsupported
 
-Intel macOS, Linux arm64, macOS below 26, Linux without musl, static
+Intel macOS, macOS below 26, Linux without musl, static
 `--fully-static` distributions, and any OpenSSL replacement backend.

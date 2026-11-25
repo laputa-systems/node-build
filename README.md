@@ -1,8 +1,9 @@
 # node-build
 
 Lean, relocatable Node.js 26.12.1 distributions: Apple Silicon macOS
-(`aarch64-apple-darwin`) and Alpine musl x86_64
-(`x86_64-unknown-linux-musl`). Small ICU, no npm/npx, no Corepack.
+(`aarch64-apple-darwin`) and Alpine musl x86_64 and arm64
+(`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`). Small ICU,
+no npm/npx, no Corepack.
 
 ## Get it
 
@@ -17,7 +18,8 @@ PATH="$PWD/node/bin:$PATH" node --version
 ```
 
 The tree relocates to any path, including paths with spaces. macOS 26+
-on arm64, or Alpine (musl 1.2.6+) on x86_64. No other runtime dependency.
+on arm64, or Alpine (musl 1.2.6+) on x86_64 or arm64. No other runtime
+dependency.
 
 ## What's inside
 
