@@ -158,13 +158,14 @@ jobs:
           path: .
           merge-multiple: true
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - uses: laputa-systems/buildlib/setup@1cd9d482a684e72c68ac6fea7f4ee3a3e9c4a161 # v0.3.1
         with:
-          python-version: "3.15.1"
+          tools: cpython
+          lock: .github/tools.lock.json
 
       - name: Assemble and checksum release assets
         run: |
-          python3 build.py assemble
+          sh bootstrap/buildlib-run -- build.py assemble
           (cd dist/release && sha256sum -c SHA256SUMS)
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -221,7 +222,7 @@ jobs:
             --env TARGET \
             "$ALPINE_AMD64" sh -ec '
               apk add --no-cache curl=8.23.0-r0 python3=3.14.10-r2 g++=15.2.0-r5
-              python3 build.py published-smoke --target "$TARGET"
+              sh bootstrap/buildlib-run -- build.py published-smoke --target "$TARGET"
             '
 
       - name: Run Linux node with Ubuntu musl
