@@ -26,12 +26,15 @@ malformed headers, bad rpaths) prove the validator fails when it should.
 Every shipped ELF image is scanned from its own ELF header, program
 headers, and dynamic section (`buildlib.elf`, no external tools):
 
-- Exactly one 64-bit little-endian x86-64 image; 32-bit files rejected.
+- Exactly one 64-bit little-endian image of the target architecture
+  (x86-64 or AArch64); 32-bit files and wrong-arch images rejected.
 - Every executable is `ET_DYN` (PIE); `ET_EXEC` non-PIE rejected.
-- Interpreter is exactly `/lib/ld-musl-x86_64.so.1`.
+- Interpreter is exactly the target's musl loader
+  (`/lib/ld-musl-x86_64.so.1` or `/lib/ld-musl-aarch64.so.1`).
 - Every `DT_NEEDED` entry is in the allowlist
   (`ALLOWED_NEEDED` in `buildsys/elf_policy.py`); absolute paths and `..`
-  escapes rejected. No `DT_RPATH`/`DT_RUNPATH` may be present.
+  escapes rejected. `bin/node` may need only the matching
+  `libc.musl-<arch>.so.1`. No `DT_RPATH`/`DT_RUNPATH` may be present.
 - `buildlib.elf.hardening_violations` is empty: `PT_GNU_RELRO` present,
   `DF_BIND_NOW`/`DF_1_NOW` set, `PT_GNU_STACK` non-executable, and no
   writable-and-executable `PT_LOAD` segment.

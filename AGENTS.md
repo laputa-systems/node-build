@@ -4,8 +4,8 @@
 It preserves installed dependencies and unrelated scratch files.
 
 Independent build system for the locked Node.js 26.12.1 source. It produces
-relocatable, PIE-hardened installations for `aarch64-apple-darwin` and
-`x86_64-unknown-linux-musl`. Linux arm64 stays parked.
+relocatable, PIE-hardened installations for `aarch64-apple-darwin`,
+`x86_64-unknown-linux-musl`, and `aarch64-unknown-linux-musl`.
 
 The roadmap, [docs/roadmap.md](docs/roadmap.md), holds all current and future work; its Status is the resume point.
 

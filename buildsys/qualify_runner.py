@@ -38,6 +38,7 @@ def qualify(repo_root: Path, triple: str) -> dict:
         wanted.deployment_target,
         [str(repo_root / "build" / triple / "stage").encode()],
         [str(node_driver.source_dir(repo_root)).encode()],
+        family=wanted.family,
     )
     smoke_work = work / "smoke-work"
     smoke_work.mkdir(parents=True, exist_ok=True)

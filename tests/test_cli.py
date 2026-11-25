@@ -41,11 +41,11 @@ class TargetAdmissionTest(unittest.TestCase):
                 redirect_stdout(io.StringIO()) as stdout,
                 redirect_stderr(io.StringIO()) as stderr,
             ):
-                status = build.main([command, "--target", "aarch64-unknown-linux-musl"])
+                status = build.main([command, "--target", "riscv64gc-unknown-linux-musl"])
                 self.assertEqual(status, 2)
                 self.assertEqual(stdout.getvalue(), "")
                 self.assertTrue(stderr.getvalue().startswith(f"error: {command} --target: "))
-                self.assertIn("target deferred, not implemented in this campaign: aarch64-unknown-linux-musl", stderr.getvalue())
+                self.assertIn("target not implemented: riscv64gc-unknown-linux-musl", stderr.getvalue())
                 self.assertTrue(stderr.getvalue().endswith(f". See build.py {command} --help\n"))
 
     def test_assemble_rejects_unsupported_target_in_list_before_looking_up_revision(self):
@@ -125,8 +125,9 @@ class CommandContractTest(unittest.TestCase):
 
     def test_assembly_default_and_trimmed_targets(self):
         target = "aarch64-apple-darwin"
+        arm64_linux = "aarch64-unknown-linux-musl"
         linux = "x86_64-unknown-linux-musl"
-        result = {"release_dir": "/fixture/release", "targets": [target, linux], "assets": []}
+        result = {"release_dir": "/fixture/release", "targets": [target, arm64_linux, linux], "assets": []}
         with (
             patch.object(build.release_assembler, "assemble_all", return_value=result) as assemble,
             redirect_stdout(io.StringIO()),
@@ -136,6 +137,6 @@ class CommandContractTest(unittest.TestCase):
             self.assertEqual(build.main(["assemble", "--target", f"  {linux}, ,{target} "]), 0)
             self.assertEqual(build.main(["assemble", "--target", ",  "]), 2)
         self.assertEqual(assemble.call_count, 2)
-        self.assertEqual(assemble.call_args_list[0].args, (build.REPO_ROOT, (target, linux)))
+        self.assertEqual(assemble.call_args_list[0].args, (build.REPO_ROOT, (target, arm64_linux, linux)))
         self.assertEqual(assemble.call_args_list[1].args, (build.REPO_ROOT, (linux, target)))
         self.assertEqual(stderr.getvalue(), "error: no --target given\n")

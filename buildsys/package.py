@@ -64,9 +64,9 @@ def prune_to_contract(install_root: Path) -> list[str]:
 
 
 def write_hardening_report(
-    install_root: Path, machine: str, deployment_target: str, destination: Path
+    install_root: Path, machine: str, deployment_target: str, destination: Path, *, family: str
 ) -> dict:
-    if machine == "x86_64":
+    if family == "linux-musl":
         images = elf.find_elfs(install_root)
         record = {
             "images": {
@@ -131,7 +131,8 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
     shutil.copyfile(source / "LICENSE", install_root / "LICENSE")
     removed = prune_to_contract(install_root)
     report = write_hardening_report(
-        install_root, wanted.machine, wanted.deployment_target, stage / "hardening-report.json"
+        install_root, wanted.machine, wanted.deployment_target, stage / "hardening-report.json",
+        family=wanted.family,
     )
     findings = validate_product.validate_install_tree(
         install_root,
@@ -139,6 +140,7 @@ def package(repo_root: Path, triple: str, source: Path) -> dict:
         wanted.deployment_target,
         [str(stage).encode()],
         [str(source).encode()],
+        family=wanted.family,
     )
     validate_product.gate(findings)
     if hashing.sha256_file(build_receipt) != receipt_sha256:

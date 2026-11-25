@@ -223,7 +223,7 @@ class QualificationReceiptTest(unittest.TestCase):
             self.assertTrue((self.work / "smoke-work").is_dir())
             stage = str(self.root / "build" / self.triple / "stage").encode()
             source = str(self.root / "build" / "src" / f"node-v{product.NODE_VERSION}").encode()
-            validate.assert_called_once_with(extracted, "arm64", "26.0", [stage], [source])
+            validate.assert_called_once_with(extracted, "arm64", "26.0", [stage], [source], family="macos")
             run_smoke.assert_called_once_with(
                 extracted / "bin" / "node", extracted, extracted / "include" / "node",
                 self.work / "smoke-work", self.root / "tests" / "fixtures", self.triple,
@@ -442,7 +442,9 @@ class InstalledProductTest(unittest.TestCase):
         stage = b"/fixture/stage/node"
         base = build_image()
         self.binary.write_bytes(base + source)
-        findings = validate_product.validate_install_tree(self.install, "x86_64", "1.2.6", [stage], [source])
+        findings = validate_product.validate_install_tree(
+            self.install, "x86_64", "1.2.6", [stage], [source], family="linux-musl"
+        )
         self.assertEqual([finding.name for finding in findings if not finding.ok], [])
         for name, detail in (("layout-LICENSE", "present"), ("header-node_api.h", "present"), ("absent-bin/npm", "absent")):
             self.assertIn(validate_product.ProductFinding(name, True, detail), findings)
@@ -453,7 +455,9 @@ class InstalledProductTest(unittest.TestCase):
         (self.install / "LICENSE").unlink()
         (self.binary.parent / "npm").write_bytes(b"unexpected tool")
         self.binary.write_bytes(base + stage)
-        findings = validate_product.validate_install_tree(self.install, "x86_64", "1.2.6", [stage], [source])
+        findings = validate_product.validate_install_tree(
+            self.install, "x86_64", "1.2.6", [stage], [source], family="linux-musl"
+        )
         self.assertEqual([finding for finding in findings if not finding.ok], [
             validate_product.ProductFinding("layout-LICENSE", False, "missing"),
             validate_product.ProductFinding("header-node_api.h", False, "missing"),

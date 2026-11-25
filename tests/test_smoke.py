@@ -488,6 +488,7 @@ class CommandSmokeContract(unittest.TestCase):
         package = self.work / "addon.node"
         for triple, name, flags in (
             ("x86_64-unknown-linux-musl", "g++", ["-shared", "-fPIC"]),
+            ("aarch64-unknown-linux-musl", "g++", ["-shared", "-fPIC"]),
             ("aarch64-apple-darwin", "clang++", ["-bundle", "-undefined", "dynamic_lookup"]),
         ):
             with self.subTest(triple=triple):

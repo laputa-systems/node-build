@@ -69,9 +69,9 @@ to Edit; `bench` defaults to Full. Dry runs do not preflight or write files.
 | Workloads | Tier and area | Purpose and estimated cost | Requirements | Output |
 | --- | --- | --- | --- | --- |
 | `harness-tests` | Edit, harness | Comparison and budget correctness, seconds | Locked Python environment | Run log |
-| `size-darwin`, `size-musl` | Change, size | Compressed and installed size, seconds | Target archive in `dist/` | Run log and size verdict |
-| `compare-darwin`, `compare-musl` | Scenario, runtime | Five interleaved startup and JSON pairs, minutes | Native candidate and reference Node 26.12.1, `perf-gate-ready` | Run log and comparison record |
-| `build-darwin`, `build-musl` | Full, build | Native build and packaging elapsed time, two hours | Locked native toolchain, cached inputs, disk space, `perf-gate-ready` | Run log and build outputs |
+| `size-darwin`, `size-musl`, `size-musl-arm64` | Change, size | Compressed and installed size, seconds | Target archive in `dist/` | Run log and size verdict |
+| `compare-darwin`, `compare-musl`, `compare-musl-arm64` | Scenario, runtime | Five interleaved startup and JSON pairs, minutes | Native candidate and reference Node 26.12.1, `perf-gate-ready` | Run log and comparison record |
+| `build-darwin`, `build-musl`, `build-musl-arm64` | Full, build | Native build and packaging elapsed time, two hours | Locked native toolchain, cached inputs, disk space, `perf-gate-ready` | Run log and build outputs |
 
 `make bench-list` prints each exact command. A run writes logs and `summary.json`
 to a dated directory in `.work/benchmark/`. A successful size check means the

@@ -34,14 +34,19 @@ class Workload:
 
 WORKLOADS = (
     Workload("harness-tests", "edit", "harness", "comparison and size gate correctness", "estimated seconds", "any", (sys.executable, "-m", "unittest", "tests.test_compare", "tests.test_controller.ArchiveBudgetTest"), "python"),
-    *(Workload(f"size-{short}", "change", "size", "compressed and installed archive size", "estimated seconds", target, (sys.executable, "build.py", "check-budgets", "--target", target), "archive") for short, target in (("darwin", "aarch64-apple-darwin"), ("musl", "x86_64-unknown-linux-musl"))),
-    *(Workload(f"compare-{short}", "scenario", "runtime", "startup and JSON against reference", "estimated minutes", target, (sys.executable, "build.py", "compare-reference", "--target", target), "nodes") for short, target in (("darwin", "aarch64-apple-darwin"), ("musl", "x86_64-unknown-linux-musl"))),
-    *(Workload(f"build-{short}", "full", "build", "native build and package elapsed time", "estimated 2 hours", target, ("make", "build", f"TARGET={target}"), "toolchain") for short, target in (("darwin", "aarch64-apple-darwin"), ("musl", "x86_64-unknown-linux-musl"))),
+    *(Workload(f"size-{short}", "change", "size", "compressed and installed archive size", "estimated seconds", target, (sys.executable, "build.py", "check-budgets", "--target", target), "archive") for short, target in (("darwin", "aarch64-apple-darwin"), ("musl", "x86_64-unknown-linux-musl"), ("musl-arm64", "aarch64-unknown-linux-musl"))),
+    *(Workload(f"compare-{short}", "scenario", "runtime", "startup and JSON against reference", "estimated minutes", target, (sys.executable, "build.py", "compare-reference", "--target", target), "nodes") for short, target in (("darwin", "aarch64-apple-darwin"), ("musl", "x86_64-unknown-linux-musl"), ("musl-arm64", "aarch64-unknown-linux-musl"))),
+    *(Workload(f"build-{short}", "full", "build", "native build and package elapsed time", "estimated 2 hours", target, ("make", "build", f"TARGET={target}"), "toolchain") for short, target in (("darwin", "aarch64-apple-darwin"), ("musl", "x86_64-unknown-linux-musl"), ("musl-arm64", "aarch64-unknown-linux-musl"))),
 )
 
 
 def supported(target: str) -> bool:
-    return target == "any" or (target == "aarch64-apple-darwin" and sys.platform == "darwin" and platform.machine() in ("arm64", "aarch64")) or (target == "x86_64-unknown-linux-musl" and sys.platform.startswith("linux") and platform.machine() == "x86_64")
+    return (
+        target == "any"
+        or (target == "aarch64-apple-darwin" and sys.platform == "darwin" and platform.machine() in ("arm64", "aarch64"))
+        or (target == "x86_64-unknown-linux-musl" and sys.platform.startswith("linux") and platform.machine() == "x86_64")
+        or (target == "aarch64-unknown-linux-musl" and sys.platform.startswith("linux") and platform.machine() in ("aarch64", "arm64"))
+    )
 
 
 def select(tier: str, names: list[str], areas: list[str], skips: list[str]) -> tuple[list[Workload], dict[str, str]]:

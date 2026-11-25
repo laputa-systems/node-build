@@ -206,8 +206,8 @@ def write_receipt(
     source = locks.load_sources(repo_root / "sources.lock.json").get("node")
     toolchain_lock = locks.load_bootstrap(repo_root / "bootstrap.lock.json")
     if wanted.is_linux:
-        toolchain_section = toolchain_lock["linux_toolchain"]
-        baseline_section = toolchain_lock["linux_baseline"]
+        toolchain_section = toolchain_lock["linux_toolchain"][wanted.machine]
+        baseline_section = toolchain_lock["linux_baseline"][wanted.machine]
         effective_env = {
             "CFLAGS": " ".join(recipe["cflags"]),
             "CXXFLAGS": " ".join(recipe["cflags"]),

@@ -34,9 +34,12 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(wanted.family, "linux-musl")
         self.assertEqual(wanted.cpu_baseline_cflag, "-march=x86-64-v2")
 
-    def test_linux_arm64_still_deferred(self):
-        with self.assertRaisesRegex(targets.UnsupportedTargetError, "target deferred"):
-            targets.target_for_triple("aarch64-unknown-linux-musl")
+    def test_linux_arm64_musl_supported(self):
+        wanted = targets.target_for_triple("aarch64-unknown-linux-musl")
+        self.assertEqual(wanted.machine, "aarch64")
+        self.assertEqual(wanted.family, "linux-musl")
+        self.assertEqual(wanted.cpu_baseline_cflag, "-march=armv8-a")
+        self.assertEqual(wanted.deployment_target, "1.2.6")
 
     def test_unknown_triple_rejected(self):
         with self.assertRaisesRegex(targets.UnsupportedTargetError, "target not implemented"):
@@ -56,6 +59,7 @@ class TargetTest(unittest.TestCase):
         for system, machine, triple, baseline in (
             ("Darwin", "arm64", "aarch64-apple-darwin", "-mcpu=apple-m1"),
             ("Linux", "x86_64", "x86_64-unknown-linux-musl", "-march=x86-64-v2"),
+            ("Linux", "aarch64", "aarch64-unknown-linux-musl", "-march=armv8-a"),
         ):
             with (
                 self.subTest(system=system, machine=machine),
@@ -65,17 +69,14 @@ class TargetTest(unittest.TestCase):
                 self.assertEqual(targets.native_target().cpu_baseline_cflag, baseline)
                 self.assertEqual(build.resolve_target(None), triple)
 
-    def test_omitted_target_rejects_parked_native_linux_arm64(self):
+    def test_omitted_target_selects_native_linux_arm64(self):
         with (
             patch.object(host_targets.platform, "system", return_value="Linux"),
             patch.object(host_targets.platform, "machine", return_value="aarch64"),
             redirect_stderr(io.StringIO()) as stderr,
-            self.assertRaises(SystemExit) as failure,
         ):
-            build.main(["check-budgets"])
-        self.assertEqual(failure.exception.code, 2)
-        self.assertIn("no --target given", stderr.getvalue())
-        self.assertIn("x86_64-unknown-linux-musl", stderr.getvalue())
+            self.assertEqual(build.resolve_target(None), "aarch64-unknown-linux-musl")
+        self.assertEqual(stderr.getvalue(), "")
 
 
 class ArchiveBudgetTest(unittest.TestCase):
@@ -307,6 +308,7 @@ class RecipesTest(unittest.TestCase):
         cases = (
             ("aarch64-apple-darwin", "mac", "arm64", "-mcpu=apple-m1", "26.0"),
             ("x86_64-unknown-linux-musl", "linux", "x64", "-march=x86-64-v2", "1.2.6"),
+            ("aarch64-unknown-linux-musl", "linux", "arm64", "-march=armv8-a", "1.2.6"),
         )
         for triple, os_name, cpu, cflag, deployment in cases:
             with self.subTest(triple=triple):
@@ -326,8 +328,8 @@ class RecipesTest(unittest.TestCase):
                 )
 
     def test_unknown_target_reports_the_triple(self):
-        with self.assertRaisesRegex(recipes.BannedFlagError, "no recipe for target: aarch64-unknown-linux-musl"):
-            recipes.recipe_for_triple("aarch64-unknown-linux-musl")
+        with self.assertRaisesRegex(recipes.BannedFlagError, "no recipe for target: riscv64gc-unknown-linux-musl"):
+            recipes.recipe_for_triple("riscv64gc-unknown-linux-musl")
 
     def test_banned_flags_rejected(self):
         for banned in ("-march=native", "-ffast-math", "--fully-static", "--enable-thin-lto"):
@@ -358,7 +360,7 @@ class PatchTest(unittest.TestCase):
     def test_patches_apply_once_and_reject_duplicates(self):
         from buildsys import node as node_driver
 
-        for triple in ("aarch64-apple-darwin", "x86_64-unknown-linux-musl"):
+        for triple in ("aarch64-apple-darwin", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"):
             with self.subTest(triple=triple):
                 probe = REPO_ROOT / ".work" / "tmp" / "patch-probe"
                 patches = node_driver.HELP_PATCHES + (
@@ -590,7 +592,8 @@ class BootstrapTest(unittest.TestCase):
             ("toolchain", None, "bootstrap lock section must be an object: toolchain"),
             ("cpu_baseline", ["cflag", "deployment_target"], "bootstrap lock section must be an object: cpu_baseline"),
             ("linux_toolchain", "gcc clang musl host_machine", "bootstrap lock section must be an object: linux_toolchain"),
-            ("linux_baseline", {**base["linux_baseline"], "cflag": 7}, "bootstrap lock linux_baseline cflag must be a nonempty string"),
+            ("linux_baseline", {**base["linux_baseline"], "x86_64": {**base["linux_baseline"]["x86_64"], "cflag": 7}},
+             "bootstrap lock linux_baseline x86_64 cflag must be a nonempty string"),
         )
         with tempfile.TemporaryDirectory(dir=REPO_ROOT / ".work" / "tmp") as scratch:
             lock = Path(scratch) / "bootstrap.lock.json"
@@ -606,8 +609,12 @@ class BootstrapTest(unittest.TestCase):
                 documents.extend((
                     ("missing section", {name: value for name, value in base.items() if name != "linux_baseline"},
                      "bootstrap lock missing section: linux_baseline"),
-                    ("missing field", {**base, "linux_baseline": {"cflag": "-march=x86-64-v2"}},
-                     "bootstrap lock linux_baseline missing: deployment_target"),
+                    ("missing arch", {**base, "linux_baseline": {"x86_64": base["linux_baseline"]["x86_64"]}},
+                     "bootstrap lock linux_baseline missing: aarch64"),
+                    ("missing field", {**base, "linux_baseline": {
+                        "aarch64": base["linux_baseline"]["aarch64"],
+                        "x86_64": {"cflag": "-march=x86-64-v2"},
+                    }}, "bootstrap lock linux_baseline x86_64 missing: deployment_target"),
                     ("unsupported schema", {**base, "schema_version": 9}, f"{lock}: schema_version must be 1, found 9"),
                 ))
                 for name, document, message in documents:
@@ -670,7 +677,7 @@ class BootstrapTest(unittest.TestCase):
 
     def test_checks_report_both_matching_and_changed_toolchain_fields(self):
         lock = json.loads((REPO_ROOT / "bootstrap.lock.json").read_text(encoding="utf-8"))
-        apple, linux = lock["toolchain"], lock["linux_toolchain"]
+        apple, linux = lock["toolchain"], lock["linux_toolchain"]["x86_64"]
         matches_macos = bootstrap.ToolchainIdentity(
             apple["xcode"], apple["sdk"], "/sdk", apple["clang"], apple["host_machine"], "Darwin", "3.15.2",
         )
@@ -683,8 +690,8 @@ class BootstrapTest(unittest.TestCase):
             ("macos", bootstrap.check_locked_toolchain(lock, matches_macos),
              bootstrap.check_locked_toolchain(lock, changed_macos),
              [("xcode", apple["xcode"]), ("sdk", apple["sdk"]), ("clang", apple["clang"]), ("machine", apple["host_machine"])]),
-            ("linux", bootstrap.check_linux_toolchain(lock, matches_linux),
-             bootstrap.check_linux_toolchain(lock, changed_linux),
+            ("linux", bootstrap.check_linux_toolchain(lock, matches_linux, "x86_64"),
+             bootstrap.check_linux_toolchain(lock, changed_linux, "x86_64"),
              [("gcc", linux["gcc"]), ("clang", linux["clang"]), ("musl", linux["musl"]), ("machine", linux["host_machine"])]),
         )
         for host, matching, changed, expected in checks:
@@ -699,7 +706,26 @@ class BootstrapTest(unittest.TestCase):
                      for name, pinned in expected] + [bootstrap.DoctorFinding("system", False, "host Unknown")],
                 )
 
-        for check, key in ((bootstrap.check_locked_baseline, "cpu_baseline"), (bootstrap.check_linux_baseline, "linux_baseline")):
+        wanted = targets.target_for_triple("x86_64-unknown-linux-musl")
+        self.assertEqual(
+            bootstrap.check_linux_baseline(lock, wanted),
+            [bootstrap.DoctorFinding("cpu-baseline", True, "locked -march=x86-64-v2"),
+             bootstrap.DoctorFinding("deployment-target", True, "locked 1.2.6")],
+        )
+        arm64 = targets.target_for_triple("aarch64-unknown-linux-musl")
+        self.assertEqual(
+            bootstrap.check_linux_baseline(lock, arm64),
+            [bootstrap.DoctorFinding("cpu-baseline", True, "locked -march=armv8-a"),
+             bootstrap.DoctorFinding("deployment-target", True, "locked 1.2.6")],
+        )
+        per_arch = {arch: dict(section) for arch, section in lock["linux_baseline"].items()}
+        per_arch["x86_64"] = {"cflag": "-march=native", "deployment_target": "0"}
+        changed = lock | {"linux_baseline": per_arch}
+        self.assertEqual(bootstrap.check_linux_baseline(changed, wanted), [
+            bootstrap.DoctorFinding("cpu-baseline", False, "locked -march=native"),
+            bootstrap.DoctorFinding("deployment-target", False, "locked 0"),
+        ])
+        for check, key in ((bootstrap.check_locked_baseline, "cpu_baseline"),):
             with self.subTest(baseline=key):
                 self.assertEqual(
                     check(lock),
@@ -725,13 +751,14 @@ class BootstrapTest(unittest.TestCase):
             if "musl" not in probe:
                 self.skipTest("linux lock check needs a musl host")
             identity = bootstrap.linux_current_identity()
+            wanted = targets.native_target()
             mismatches = [
-                finding for finding in bootstrap.check_linux_toolchain(lock, identity)
+                finding for finding in bootstrap.check_linux_toolchain(lock, identity, wanted.machine)
                 if not finding.ok
             ]
             self.assertEqual(mismatches, [])
             baseline_bad = [
-                finding for finding in bootstrap.check_linux_baseline(lock) if not finding.ok
+                finding for finding in bootstrap.check_linux_baseline(lock, wanted) if not finding.ok
             ]
             self.assertEqual(baseline_bad, [])
             return

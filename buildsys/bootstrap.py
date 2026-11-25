@@ -11,6 +11,8 @@ from typing import Any
 
 from buildlib import locks
 
+from buildsys.targets import Target
+
 
 @dataclass(frozen=True)
 class ToolchainIdentity:
@@ -50,13 +52,17 @@ def load_bootstrap_lock(path: Path) -> Mapping[str, Any]:
     return lock
 
 
+LINUX_ARCHES = ("aarch64", "x86_64")
+
+LINUX_TOOLCHAIN_FIELDS = ("gcc", "clang", "musl", "host_machine")
+LINUX_BASELINE_FIELDS = ("cflag", "deployment_target")
+
+
 def validate_bootstrap_lock(lock: Mapping[str, Any]) -> None:
     required_fields = {
         "toolchain": ("xcode", "sdk", "clang", "host_machine"),
         "cpu_baseline": ("cflag", "deployment_target"),
         "host_requirements": (),
-        "linux_toolchain": ("gcc", "clang", "musl", "host_machine"),
-        "linux_baseline": ("cflag", "deployment_target"),
     }
     for section, fields in required_fields.items():
         if section not in lock:
@@ -70,6 +76,29 @@ def validate_bootstrap_lock(lock: Mapping[str, Any]) -> None:
             value: object = values[key]
             if not isinstance(value, str) or not value:
                 raise ValueError(f"bootstrap lock {section} {key} must be a nonempty string")
+    for section, fields in (
+        ("linux_toolchain", LINUX_TOOLCHAIN_FIELDS),
+        ("linux_baseline", LINUX_BASELINE_FIELDS),
+    ):
+        if section not in lock:
+            raise ValueError(f"bootstrap lock missing section: {section}")
+        values = lock[section]
+        if not isinstance(values, Mapping):
+            raise TypeError(f"bootstrap lock section must be an object: {section}")
+        for arch in LINUX_ARCHES:
+            if arch not in values:
+                raise ValueError(f"bootstrap lock {section} missing: {arch}")
+            per_arch: object = values[arch]
+            if not isinstance(per_arch, Mapping):
+                raise TypeError(f"bootstrap lock section must be an object: {section}.{arch}")
+            for key in fields:
+                if key not in per_arch:
+                    raise ValueError(f"bootstrap lock {section} {arch} missing: {key}")
+                value = per_arch[key]
+                if not isinstance(value, str) or not value:
+                    raise ValueError(
+                        f"bootstrap lock {section} {arch} {key} must be a nonempty string"
+                    )
 
 
 def _run(argv: list[str]) -> str:
@@ -194,9 +223,9 @@ def linux_current_identity() -> LinuxToolchainIdentity:
 
 
 def check_linux_toolchain(
-    lock: Mapping[str, Any], identity: LinuxToolchainIdentity
+    lock: Mapping[str, Any], identity: LinuxToolchainIdentity, machine: str
 ) -> list[DoctorFinding]:
-    toolchain = lock["linux_toolchain"]
+    toolchain = lock["linux_toolchain"][machine]
     return [
         DoctorFinding(
             "gcc",
@@ -226,17 +255,17 @@ def check_linux_toolchain(
     ]
 
 
-def check_linux_baseline(lock: Mapping[str, Any]) -> list[DoctorFinding]:
-    baseline = lock["linux_baseline"]
+def check_linux_baseline(lock: Mapping[str, Any], target: Target) -> list[DoctorFinding]:
+    baseline = lock["linux_baseline"][target.machine]
     return [
         DoctorFinding(
             "cpu-baseline",
-            baseline["cflag"] == "-march=x86-64-v2",
+            baseline["cflag"] == target.cpu_baseline_cflag,
             f"locked {baseline['cflag']}",
         ),
         DoctorFinding(
             "deployment-target",
-            baseline["deployment_target"] == "1.2.6",
+            baseline["deployment_target"] == target.deployment_target,
             f"locked {baseline['deployment_target']}",
         ),
     ]

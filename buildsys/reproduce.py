@@ -7,10 +7,11 @@ from pathlib import Path
 from buildlib import elf, macho
 
 from buildsys import inputs
+from buildsys.targets import target_for_triple
 
 
 def normalize_for_triple(binary: Path, triple: str) -> bytes:
-    if triple == "x86_64-unknown-linux-musl":
+    if target_for_triple(triple).is_linux:
         return elf.normalized_bytes(binary)
     return macho.normalized_bytes(binary)
 
@@ -77,7 +78,7 @@ def reproduce(repo_root: Path, triple: str, jobs: int) -> dict:
     if record["raw_match"]:
         record["verdict"] = "bit-for-bit reproducible"
     elif record["normalized_match"]:
-        if triple == "x86_64-unknown-linux-musl":
+        if target_for_triple(triple).is_linux:
             record["verdict"] = (
                 "content identical outside ELF build-ID "
                 "(NT_GNU_BUILD_ID regenerates per link)"

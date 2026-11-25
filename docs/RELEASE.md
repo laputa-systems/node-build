@@ -34,17 +34,19 @@ from dirty trees or without Git can still run and produce development packages.
 
 `preflight` rejects any ref other than the default branch. `controller-test` runs
 `make controller-test`. `build` runs `make doctor build verify TARGET=<triple>` per target:
-`aarch64-apple-darwin` on the `xcode-27` runner, and `x86_64-unknown-linux-musl` in a
-digest-pinned Alpine musl container (the digest and `apk` pins follow the fleet
-`musl-toolchain.toml` policy; `doctor` fails closed if the container toolchain drifts from
+`aarch64-apple-darwin` on the `xcode-27` runner, `x86_64-unknown-linux-musl` on
+`ubuntu-26.04`, and `aarch64-unknown-linux-musl` on `ubuntu-26.04-arm` (native arm64,
+not emulated); each musl target builds in a digest-pinned Alpine container for its
+architecture (the digests and `apk` pins follow the fleet `musl-toolchain.toml`
+policy; `doctor` fails closed if the container toolchain drifts from
 `bootstrap.lock.json`). Each build uploads `dist/<triple>` plus the build receipt, package
 record, and qualify record, and preserves logs plus qualification evidence when it fails.
 
-`assemble` downloads both triples, runs `build.py assemble`, checks `SHA256SUMS` with
+`assemble` downloads every triple, runs `build.py assemble`, checks `SHA256SUMS` with
 `sha256sum -c`, and uploads `dist/release/`. `smoke` verifies the checksums again and runs
 `build.py published-smoke --target <triple>` against the exact assembled bytes (Linux inside
-the same Alpine container). Linux smoke also runs the assembled node executable
-in Ubuntu 26.04 with its distribution musl package. `release` rechecks the ref, refuses an existing
+the same Alpine container for the target's architecture). Linux smoke also runs the assembled node executable
+in Ubuntu 26.04 with its distribution musl package on the matching architecture. `release` rechecks the ref, refuses an existing
 `release-<sha>` tag, creates the tag at `$GITHUB_SHA` through the GitHub API, writes the
 notes, and publishes:
 
@@ -57,6 +59,7 @@ gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_S
 ## Installing
 
 `~/usr/dl node-build` installs the latest prerelease for the host triple
-(`aarch64-apple-darwin` on Apple Silicon, `x86_64-unknown-linux-musl` on Linux x86_64) into
+(`aarch64-apple-darwin` on Apple Silicon, `x86_64-unknown-linux-musl` on Linux x86_64,
+`aarch64-unknown-linux-musl` on Linux arm64) into
 `$XDG_DATA_HOME/node-build/<tag>`, verifying `SHA256SUMS` before extraction and symlinking the
 result. The per-triple manifest carries the archive hash.
