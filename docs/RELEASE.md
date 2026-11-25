@@ -43,7 +43,8 @@ record, and qualify record, and preserves logs plus qualification evidence when 
 `assemble` downloads both triples, runs `build.py assemble`, checks `SHA256SUMS` with
 `sha256sum -c`, and uploads `dist/release/`. `smoke` verifies the checksums again and runs
 `build.py published-smoke --target <triple>` against the exact assembled bytes (Linux inside
-the same Alpine container). `release` rechecks the ref, refuses an existing
+the same Alpine container). Linux smoke also runs the assembled node executable
+in Ubuntu 26.04 with its distribution musl package. `release` rechecks the ref, refuses an existing
 `release-<sha>` tag, creates the tag at `$GITHUB_SHA` through the GitHub API, writes the
 notes, and publishes:
 

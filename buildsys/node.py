@@ -32,6 +32,8 @@ def configure_env(recipe: dict) -> dict[str, str]:
         env["MACOSX_DEPLOYMENT_TARGET"] = recipe["deployment_target"]
     env["CFLAGS"] = " ".join(recipe["cflags"])
     env["CXXFLAGS"] = " ".join(recipe["cflags"])
+    if "ldflags" in recipe:
+        env["LDFLAGS"] = " ".join(recipe["ldflags"])
     return env
 
 
@@ -209,6 +211,7 @@ def write_receipt(
         effective_env = {
             "CFLAGS": " ".join(recipe["cflags"]),
             "CXXFLAGS": " ".join(recipe["cflags"]),
+            "LDFLAGS": " ".join(recipe["ldflags"]),
         }
     else:
         toolchain_section = toolchain_lock["toolchain"]

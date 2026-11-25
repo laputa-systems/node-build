@@ -41,6 +41,7 @@ def linux_recipe() -> dict:
             "--with-intl=small-icu",
         ],
         "cflags": ["-march=x86-64-v2"],
+        "ldflags": ["-static-libstdc++", "-static-libgcc"],
         "optimization": "-O3",
         "deployment_target": "1.2.6",
     }
@@ -61,7 +62,7 @@ def validate_recipe(recipe: dict) -> None:
     for required in REQUIRED_CONFIGURE_ARGS:
         if required not in recipe["configure"]:
             raise BannedFlagError(f"recipe missing required configure argument: {required}")
-    for token in list(recipe["configure"]) + list(recipe["cflags"]) + [recipe["optimization"]]:
+    for token in list(recipe["configure"]) + list(recipe["cflags"]) + list(recipe.get("ldflags", [])) + [recipe["optimization"]]:
         for banned in BANNED_SUBSTRINGS:
             if banned in token:
                 raise BannedFlagError(f"recipe contains banned flag: {banned}")

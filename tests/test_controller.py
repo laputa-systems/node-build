@@ -299,6 +299,10 @@ class InputsTest(unittest.TestCase):
 
 
 class RecipesTest(unittest.TestCase):
+    def test_linux_link_flags_reach_build_environment(self):
+        recipe = recipes.recipe_for_triple("x86_64-unknown-linux-musl")
+        self.assertEqual(node.configure_env(recipe)["LDFLAGS"], "-static-libstdc++ -static-libgcc")
+
     def test_native_recipes_preserve_release_baselines(self):
         cases = (
             ("aarch64-apple-darwin", "mac", "arm64", "-mcpu=apple-m1", "26.0"),

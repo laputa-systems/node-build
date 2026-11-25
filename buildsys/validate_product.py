@@ -173,7 +173,7 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
         )
     )
     buckets: dict[str, list[str]] = {
-        "elf-arch": [], "elf-interp": [], "elf-deps": [], "elf-rpaths": [], "elf-hardening": [],
+        "elf-arch": [], "elf-interp": [], "elf-deps": [], "elf-node-deps": [], "elf-rpaths": [], "elf-hardening": [],
     }
     for image in images:
         name = str(image.relative_to(install))
@@ -193,6 +193,8 @@ def elf_tree_checks(install: Path, machine: str) -> list[ProductFinding]:
         for dependency in deps:
             if not elf_policy.allowed_dependency(dependency):
                 buckets["elf-deps"].append(f"{name} -> {dependency}")
+            if image in required and dependency != "libc.musl-x86_64.so.1":
+                buckets["elf-node-deps"].append(f"{name} -> {dependency}")
         if rpaths:
             buckets["elf-rpaths"].append(f"{name}: {rpaths}")
         for problem in hardening:
