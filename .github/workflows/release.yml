@@ -224,6 +224,19 @@ jobs:
               python3 build.py published-smoke --target "$TARGET"
             '
 
+      - name: Run Linux node with Ubuntu musl
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p .work/ubuntu-smoke
+          tar -xJf dist/release/node-*-x86_64-unknown-linux-musl.tar.xz -C .work/ubuntu-smoke
+          docker run --platform linux/amd64 --rm \
+            --volume "$PWD/.work/ubuntu-smoke/node/bin/node:/node:ro" \
+            ubuntu:26.04 sh -ec '
+              apt-get update
+              apt-get install -y --no-install-recommends musl
+              /node --version
+            '
+
   release:
     name: Create pre-release
     needs: [preflight, assemble, smoke]

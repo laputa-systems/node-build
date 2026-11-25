@@ -2,14 +2,6 @@ Prefix: NODE
 Next: 6
 
 # Open work
-### NODE-5 · P2 · Linux node needs musl libstdc++ and libgcc_s, so it cannot run on glibc runners
-
-- **Area:** build · linking
-- **Where:** Linux link flags for node (x86_64-unknown-linux-musl); release archive
-- **Problem:** The released node binary is musl-dynamic and NEEDS libstdc++.so.6, libgcc_s.so.1 and libc.musl-x86_64.so.1. buildlib's setup action supplies the musl loader on Ubuntu runners (laputa-systems/buildlib#35), which is enough for python-build's cpython, but Ubuntu ships no musl libstdc++ or libgcc_s, so node from this release cannot start there. Consumers on GitHub's Ubuntu runners keep using actions/setup-node, which the owned-tool-substitution rule reports in about ten repositories.
-- **Recommendation:** Link libstdc++ and libgcc statically (-static-libstdc++ -static-libgcc, or the LLVM equivalents), leaving only libc.musl, and add a release check that runs node --version in ubuntu:26.04 with only the distribution musl package installed.
-- **Fix with:** none
-- **Effort:** M
 
 ### NODE-1 · P3 · Qualify remaining generic return and input shapes
 

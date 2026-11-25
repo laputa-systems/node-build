@@ -215,6 +215,13 @@ class ELFGateTest(unittest.TestCase):
             self.check_names(needed=("/opt/evil/libfoo.so",))["elf-deps"]
         )
 
+    def test_node_requires_only_musl_libc(self):
+        for dependency in ("libstdc++.so.6", "libgcc_s.so.1", "libatomic.so.1", "libm.so.6"):
+            with self.subTest(dependency=dependency):
+                self.assertFalse(self.check_names(needed=(dependency,))["elf-node-deps"])
+        self.assertTrue(self.check_names(needed=())["elf-node-deps"])
+        self.assertTrue(self.check_names()["elf-node-deps"])
+
     def test_rpath_fails(self):
         self.assertFalse(
             self.check_names(rpath="/build/stage/lib")["elf-rpaths"]
