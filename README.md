@@ -21,6 +21,13 @@ The tree relocates to any path, including paths with spaces. macOS 26+
 on arm64, or Alpine (musl 1.2.6+) on x86_64 or arm64. No other runtime
 dependency.
 
+The Linux builds are Alpine-only. They are not a drop-in for glibc hosts:
+napi-rs addons that pick their binding from the host libc load a GNU
+binding and fail inside musl node. Workloads that need such addons (for
+example vite, vitest and oxlint) must run on an Alpine host. A glibc host
+with a distribution musl package can run addon-free workloads. This is
+NODE-6's product decision; there is no `*-linux-gnu` target.
+
 ## What's inside
 
 `node/bin/node`, `node/include/node` headers, `node/lib`, `node/LICENSE`.
