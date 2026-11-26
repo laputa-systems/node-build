@@ -3,15 +3,6 @@ Next: 7
 
 # Open work
 
-### NODE-6 · P2 · Native addons cannot load under the musl Linux build on glibc hosts
-
-- **Area:** Linux targets, compatibility
-- **Where:** the `*-unknown-linux-musl` release targets; consumers' napi-rs addons (rolldown, oxlint)
-- **Problem:** On a glibc host such as GitHub's Ubuntu runners, napi-rs loaders decide libc from the host (`/usr/bin/ldd`), pick the `*-linux-*-gnu` binding, and fail to load it into the musl node process (`Error loading shared library libgcc_s.so.1 ... rolldown-binding.linux-x64-gnu.node`). Installing both libc variants with pnpm does not help, because the loader never tries the musl binding. So vite, vitest and oxlint builds cannot use owned node on glibc runners (joshuarli/extensions#30 closed; reproduced for joshuarli/stats' statsctl build in ubuntu:24.04 with node 26.13.1 x86_64 musl). Packages that spawn a separate native executable, such as tsrs and esbuild, work.
-- **Recommendation:** Decide between publishing a glibc-loadable Linux build (a `*-linux-gnu` target built against an old glibc baseline) and documenting musl node as Alpine-only; then remove the stats and extensions exemptions in stuff's `fleet/policy/owned-substitutes.toml`.
-- **Fix with:** architect
-- **Effort:** L
-
 ### NODE-1 · P3 · Qualify remaining generic return and input shapes
 
 - **Area:** types
@@ -47,3 +38,11 @@ Next: 7
 - **Recommendation:** Use existing receipts to verify inputs and add bounded disk and process checks without changing the comparison contract.
 - **Fix with:** none
 - **Effort:** M
+
+## Decisions
+
+### NODE-6 · Linux node is Alpine-only (2026-11-26)
+
+Node-build publishes no `*-linux-gnu` target. The Linux builds require an Alpine (musl 1.2.6+) host; they are not a drop-in for glibc hosts. napi-rs addons that select their binding from the host libc load a GNU binding and cannot load into musl node, so workloads that need them (vite, vitest, oxlint) must run on Alpine. A glibc host with a distribution musl package can run addon-free workloads. The behavior is documented in [README.md](README.md#run-it).
+
+`joshuarli/extensions` and `joshuarli/stats` keep their reasoned `setup-node` exemptions in stuff's `fleet/policy/owned-substitutes.toml`, reassessed only when those jobs run on a musl host.
